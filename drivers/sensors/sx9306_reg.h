@@ -125,14 +125,14 @@ static struct smtc_reg_data setup_reg[] = {
 		.reg = SX9306_CPS_CTRL8_REG,
 		.val = 0x00,
 	},
-	/*{
+	{
 		.reg = SX9306_CPS_CTRL9_REG,
 		.val = 0xC0,
 	},
 	{
 		.reg = SX9306_CPS_CTRL10_REG,
 		.val = 0xAA,
-	},  */
+	}
 };
 
 enum {

@@ -459,6 +459,23 @@ struct decon_underrun_stat {
 	unsigned long used_windows;
 };
 
+struct esd_protect {
+	u32 pcd_irq;
+	u32 err_irq;
+	u32 det_irq;
+	u32 pcd_gpio;
+	u32 err_gpio;
+	u32 det_gpio;
+	int pcd_pin_active;
+	int err_pin_active;
+	int det_pin_active;
+	u32 err_count;
+	u32 det_count;
+	struct workqueue_struct *esd_wq;
+	struct work_struct esd_work;
+	u32	queuework_pending;
+};
+
 #ifdef CONFIG_DECON_EVENT_LOG
 
 #define DEFAULT_BASE_IDX	(-1)
@@ -580,23 +597,6 @@ struct disp_bootloader_fb_info {
 	u32 r;
 	u32 b;
 	u32 format;
-};
-
-struct esd_protect {
-	u32 pcd_irq;
-	u32 err_irq;
-	u32 det_irq;
-	u32 pcd_gpio;
-	u32 err_gpio;
-	u32 det_gpio;
-	int pcd_pin_active;
-	int err_pin_active;
-	int det_pin_active;
-	u32 err_count;
-	u32 det_count;
-	struct workqueue_struct *esd_wq;
-	struct work_struct esd_work;
-	u32	queuework_pending;
 };
 
 /* Definitions below are used in the DECON */

@@ -17,7 +17,7 @@ hostprogs-$(BUILD_C_RECORDMCOUNT) += recordmcount
 hostprogs-$(CONFIG_BUILDTIME_EXTABLE_SORT) += sortextable
 hostprogs-$(CONFIG_ASN1)	 += asn1_compiler
 
-HOSTCFLAGS_sortextable.o = -I$(srctree)/tools/include
+HOSTCFLAGS_sortextable.o = -I$(srctree)/tools/include $(call cc-disable-warning, unused-function)
 HOSTCFLAGS_asn1_compiler.o = -I$(srctree)/include
 
 always		:= $(hostprogs-y) $(hostprogs-m)
