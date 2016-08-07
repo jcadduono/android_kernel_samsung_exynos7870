@@ -4775,11 +4775,10 @@ exit:
 	} else
 #endif
 	{
+		if (is_ldo_enabled && !specific->running_rear_camera) {
 #if !defined(CAMERA_SHARED_IO_POWER)
-		if (is_ldo_enabled && !specific->running_rear_camera)
 			fimc_is_sec_rom_power_off(core, SENSOR_POSITION_REAR);
 #else
-		if (is_ldo_enabled) {
 			if (specific->running_front_camera) {
 #ifdef CONFIG_CAMERA_ACT_DW9807_OBJ
 				if (fimc_is_sec_ldo_enable(dev, "VDD_CAM_AF_2P8", false)) {
@@ -4789,8 +4788,8 @@ exit:
 			} else {
 				fimc_is_sec_rom_power_off(core, SENSOR_POSITION_REAR);
 			}
-		}
 #endif
+		}
 	}
 
 	mutex_unlock(&specific->spi_lock);

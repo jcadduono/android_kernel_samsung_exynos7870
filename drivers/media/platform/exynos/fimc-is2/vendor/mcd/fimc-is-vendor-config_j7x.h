@@ -13,4 +13,6 @@
 
 #define CAMERA_SYSFS_V2
 
+#define CAMERA_SHARED_IO_POWER	// if used front and rear shared IO power
+
 #endif /* FIMC_IS_VENDOR_CONFIG_J7X_H */
