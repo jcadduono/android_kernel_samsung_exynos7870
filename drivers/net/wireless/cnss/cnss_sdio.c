@@ -142,6 +142,7 @@ static struct cnss_sdio_data {
 	struct task_struct *oob_task;              /* task to handle oob interrupts */
 	struct semaphore sem_oob;                  /* wake up for oob task */
 	int oob_shutdown;                          /* stop the oob task */
+	int force_hung;
 	struct completion oob_completion;          /* oob thread completion */
     CNSS_BOARDDATA board_data;
 } *penv;
@@ -404,7 +405,7 @@ EXPORT_SYMBOL(cnss_wlan_query_oob_status);
 
 /* thread to handle all the oob interrupts */
 #define CNSS_OOB_MAX_IRQ_PENDING_COUNT 100
-#define CNSS_OOB_PANIC_IRQ_PENDING_COUNT 1000
+#define CNSS_OOB_PANIC_IRQ_PENDING_COUNT 50000
 #define CNSS_SDIO_OOB_STATS 1
 unsigned long oob_loop_count = 0, irq_pending_count = 0, irq_statistics[CNSS_OOB_MAX_IRQ_PENDING_COUNT+1] = {0};
 
@@ -413,6 +414,7 @@ static int oob_task(void *pm_oob)
 	struct sched_param param = { .sched_priority = 1 };
 	int status;
 
+	init_completion(&penv->oob_completion);
 	sched_setscheduler(current, SCHED_FIFO, &param);
 
 	while (!penv->oob_shutdown) {
@@ -421,12 +423,12 @@ static int oob_task(void *pm_oob)
 		if (down_interruptible(&penv->sem_oob) != 0)
 			continue;
 		if (penv->cnss_wlan_oob_pm && penv->cnss_wlan_oob_irq_handler) {
-			while (!cnss_wlan_get_pending_irq()) {
+			while (!cnss_wlan_get_pending_irq() && !penv->oob_shutdown) {
 				status = penv->cnss_wlan_oob_irq_handler(penv->cnss_wlan_oob_pm);
 				if (status)
 					break;
 				irq_pending_count++;
-				if (irq_pending_count > CNSS_OOB_PANIC_IRQ_PENDING_COUNT && oob_loop_count!=1) 
+				if (irq_pending_count > CNSS_OOB_PANIC_IRQ_PENDING_COUNT && oob_loop_count != 1)
 					panic("%s: irq pending count %lu\n", __func__, irq_pending_count); 
 			}
 			if (irq_pending_count < CNSS_OOB_MAX_IRQ_PENDING_COUNT)
@@ -453,6 +455,39 @@ static int oob_task(void *pm_oob)
 	complete_and_exit(&penv->oob_completion, 0);
 	return 0;
 }
+
+#if 1 /* 20160327 AI 4 2 */
+int cnss_wlan_oob_shutdown(void)
+{
+	if (!penv) {
+		pr_err("%s: penv is NULL which is unexpected\n", __func__);
+	} else {
+			if (!penv->oob_task) {
+			pr_err("%s: oob_task is NULL which is unexpected\n", __func__);
+		} else {
+			pr_info("%s: wait for oob task finished itself\n", __func__);
+			penv->oob_shutdown = 1;
+			penv->force_hung = 1;
+			up(&penv->sem_oob);
+		}
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL(cnss_wlan_oob_shutdown);
+
+int cnss_wlan_check_hang(void)
+{
+	if (!penv) {
+		pr_err("%s: penv is NULL which is unexpected\n", __func__);
+		return 0;
+	} else {
+		return penv->force_hung;
+	}
+}
+EXPORT_SYMBOL(cnss_wlan_check_hang);
+#endif /* 20160327 AI 4 2 */
+
 static int wlan_oob_irq_put(void)
 {
 	if (!penv) {
@@ -462,7 +497,6 @@ static int wlan_oob_irq_put(void)
 			pr_err("%s: oob_task is NULL which is unexpected\n", __func__);
 		} else {
 			pr_info("%s: try to kill the oob task\n", __func__);
-			init_completion(&penv->oob_completion);
 			penv->oob_shutdown = 1;
 			up(&penv->sem_oob);
 			wait_for_completion(&penv->oob_completion);
@@ -1279,6 +1313,7 @@ int cnss_sdio_probe(struct platform_device *pdev)
 	penv->wake_info.prop = false;
 	penv->oob_task = NULL;
 	penv->oob_shutdown = 1;
+	penv->force_hung = 0;
 	sema_init(&penv->sem_oob, 0);
 
 	penv->vreg_info.wlan_reg = NULL;

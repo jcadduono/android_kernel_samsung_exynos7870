@@ -241,6 +241,7 @@
 		supports-erase;
 		sd-uhs-sdr50;
 		sd-uhs-sdr104;
+		card-detect-gpio;
 		bypass-smu;
 		bypass-for-allpass;
 		use-fine-tuning;

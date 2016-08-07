@@ -33,9 +33,9 @@
 #define REG_MODE        0x06 // Default: 0x00, R/W, [7:6] = RING mode(SAC2~5)
 #define REG_RESONANCE   0x07 // Default: 0x60, R/W, [5:0] = SACT
 
-#define DEF_DW9807_FIRST_POSITION		150
-#define DEF_DW9807_SECOND_POSITION		250
-#define DEF_DW9807_FIRST_DELAY			10
+#define DEF_DW9807_FIRST_POSITION		100
+#define DEF_DW9807_SECOND_POSITION		170
+#define DEF_DW9807_FIRST_DELAY			20
 #define DEF_DW9807_SECOND_DELAY			10
 
 extern struct fimc_is_lib_support gPtr_lib_support;
@@ -108,6 +108,13 @@ int sensor_dw9807_init(struct i2c_client *client, struct fimc_is_caldata_list_dw
 		/* PD disable(normal operation) */
 		i2c_data[0] = REG_CONTROL;
 		i2c_data[1] = 0x00;
+		ret = fimc_is_sensor_addr8_write8(client, i2c_data[0], i2c_data[1]);
+		if (ret < 0)
+			goto p_err;
+
+		/* Ring mode enable */
+		i2c_data[0] = REG_CONTROL;
+		i2c_data[1] = (0x01 << 1);
 		ret = fimc_is_sensor_addr8_write8(client, i2c_data[0], i2c_data[1]);
 		if (ret < 0)
 			goto p_err;

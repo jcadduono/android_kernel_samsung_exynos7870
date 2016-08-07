@@ -1341,8 +1341,8 @@ int sensor_sr544_cis_set_digital_gain(struct v4l2_subdev *subdev, struct ae_para
 		goto p_err;
 	}
 
-	dgains[0] = dgains[1] = dgains[2] = dgains[3] = short_gain;
-	/* Short digital gain */
+	dgains[0] = dgains[1] = dgains[2] = dgains[3] = long_gain;
+	/* Long digital gain */
 	ret = fimc_is_sensor_write16(client, 0x0508, dgains[0]);
 	if (ret < 0)
 		goto p_err;
@@ -1531,6 +1531,76 @@ p_err:
 	return ret;
 }
 
+int sensor_sr544_cis_compensate_gain_for_extremely_br(struct v4l2_subdev *subdev, u32 expo, u32 *again, u32 *dgain)
+{
+	int ret = 0;
+	struct fimc_is_cis *cis;
+	cis_shared_data *cis_data;
+
+	u32 vt_pic_clk_freq_mhz = 0;
+	u32 line_length_pck = 0;
+	u32 min_fine_int = 0;
+	u16 coarse_int = 0;
+	u32 integration_time = 0;
+	u32 compensated_dgain = 0;
+	static u32 pre_coarse_int = 0;
+	static u32 pre_expo = 0;
+
+	BUG_ON(!subdev);
+	BUG_ON(!again);
+	BUG_ON(!dgain);
+
+	cis = (struct fimc_is_cis *)v4l2_get_subdevdata(subdev);
+	if (!cis) {
+		err("cis is NULL");
+		ret = -EINVAL;
+		goto p_err;
+	}
+	cis_data = cis->cis_data;
+
+	vt_pic_clk_freq_mhz = cis_data->pclk / (1000 * 1000);
+	line_length_pck = cis_data->line_length_pck;
+	min_fine_int = cis_data->min_fine_integration_time;
+
+	if (line_length_pck <= 0) {
+		err("[%s] invalid line_length_pck(%d)\n", __func__, line_length_pck);
+		goto p_err;
+	}
+
+	coarse_int = ((expo * vt_pic_clk_freq_mhz) - (min_fine_int)) / line_length_pck;
+	if (coarse_int < cis_data->min_coarse_integration_time) {
+		dbg_sensor("[MOD:D:%d] %s, vsync_cnt(%d), long coarse(%d) min(%d)\n", cis->id, __func__,
+				cis_data->sen_vsync_count, coarse_int, cis_data->min_coarse_integration_time);
+		coarse_int = cis_data->min_coarse_integration_time;
+	}
+
+	integration_time = ((cis_data->line_length_pck * coarse_int + (cis_data->line_length_pck)) / vt_pic_clk_freq_mhz);
+	if (pre_coarse_int <= 15 && pre_coarse_int != 0) {
+		compensated_dgain = (*dgain * ((pre_expo * vt_pic_clk_freq_mhz) - min_fine_int)) / (line_length_pck * pre_coarse_int);
+
+		if (compensated_dgain < cis_data->min_digital_gain[1]) {
+			compensated_dgain = cis_data->min_digital_gain[1];
+		} else if (compensated_dgain >= cis_data->max_digital_gain[1]) {
+			*again = (*again * (((pre_expo * vt_pic_clk_freq_mhz) - min_fine_int)) / (line_length_pck * pre_coarse_int));
+			compensated_dgain = cis_data->max_digital_gain[1];
+		}
+
+		*dgain = compensated_dgain;
+
+		info("[%s] exp(%d), again(%d), dgain(%d), coarse_int(%d), integration_time(%d)\n",
+				__func__, expo, *again, *dgain, coarse_int, integration_time);
+		info("[%s] compensated_dgain(%d), vt_pic_clk_freq_mgz(%d), line_length_pck(%d)\n",
+				__func__, compensated_dgain, vt_pic_clk_freq_mhz, line_length_pck);
+		info("[%s] ratio(%d)\n",
+				__func__, ((pre_expo * vt_pic_clk_freq_mhz) - min_fine_int) / (line_length_pck * pre_coarse_int));
+	}
+	pre_expo = expo;
+	pre_coarse_int = coarse_int;
+
+p_err:
+	return ret;
+}
+
 static struct fimc_is_cis_ops cis_ops = {
 	.cis_init = sensor_sr544_cis_init,
 	.cis_log_status = sensor_sr544_cis_log_status,
@@ -1554,7 +1624,7 @@ static struct fimc_is_cis_ops cis_ops = {
 	.cis_get_digital_gain = sensor_sr544_cis_get_digital_gain,
 	.cis_get_min_digital_gain = sensor_sr544_cis_get_min_digital_gain,
 	.cis_get_max_digital_gain = sensor_sr544_cis_get_max_digital_gain,
-	.cis_compensate_gain_for_extremely_br = sensor_cis_compensate_gain_for_extremely_br,
+	.cis_compensate_gain_for_extremely_br = sensor_sr544_cis_compensate_gain_for_extremely_br,
 	.cis_wait_streamoff = sensor_cis_wait_streamoff,
 };
 

@@ -480,6 +480,7 @@ static void shmem_cmd_handler(struct mem_link_device *mld, u16 cmd)
 #ifdef CONFIG_FREE_CP_RSVD_MEMORY
 		free_cp_reserved_memory(mld);
 		mcu_ipc_unregister_handler(MCU_CP, mld->irq_cp2ap_msg, shmem_irq_handler);
+		cancel_delayed_work_sync(&mld->udl_rx_dwork);
 #endif
 		break;
 

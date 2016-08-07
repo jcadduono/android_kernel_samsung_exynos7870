@@ -454,8 +454,8 @@ static ssize_t sm5703_muic_show_attached_dev(struct device *dev,
 		return sprintf(buf, "DESKDOCK\n");
 	case ATTACHED_DEV_AUDIODOCK_MUIC:
 		return sprintf(buf, "AUDIODOCK\n");
-	case ATTACHED_DEV_CHARGING_CABLE_MUIC:
-		return sprintf(buf, "PS CABLE\n");
+//	case ATTACHED_DEV_CHARGING_CABLE_MUIC:
+//		return sprintf(buf, "PS CABLE\n");
 	default:
 		break;
 	}
@@ -950,6 +950,7 @@ static int detach_otg_usb(struct sm5703_muic_data *muic_data)
 	return ret;
 }
 
+/*
 static int attach_ps_cable(struct sm5703_muic_data *muic_data,
 			muic_attached_dev_t new_dev)
 {
@@ -973,6 +974,7 @@ static int detach_ps_cable(struct sm5703_muic_data *muic_data)
 
 	return ret;
 }
+*/
 
 static int attach_deskdock(struct sm5703_muic_data *muic_data,
 			muic_attached_dev_t new_dev)
@@ -1034,6 +1036,24 @@ static int detach_audiodock(struct sm5703_muic_data *muic_data)
 	muic_data->attached_dev = ATTACHED_DEV_NONE_MUIC;
 
 	return ret;
+}
+
+static int attach_jig_uart_boot_on(struct sm5703_muic_data *muic_data, muic_attached_dev_t new_dev)
+{
+//	struct muic_platform_data *pdata = muic_data->pdata;
+//	int ret = 0;
+
+	pr_info("%s:%s JIG UART BOOT-ON\n", MUIC_DEV_NAME, __func__);
+
+//	if (pdata->uart_path == MUIC_PATH_UART_AP)
+//		ret = switch_to_ap_uart(muic_data);
+//	else    
+//		ret = switch_to_cp_uart(muic_data);
+
+	new_dev = ATTACHED_DEV_JIG_UART_ON_MUIC;
+	muic_data->attached_dev = new_dev;
+
+	return new_dev;
 }
 
 static int attach_jig_uart_boot_off(struct sm5703_muic_data *muic_data, muic_attached_dev_t new_dev,
@@ -1221,7 +1241,8 @@ static void sm5703_muic_handle_attach(struct sm5703_muic_data *muic_data,
 		break;
 	case ATTACHED_DEV_JIG_UART_OFF_VB_MUIC:
 	case ATTACHED_DEV_JIG_UART_OFF_MUIC:
-		if (new_dev != ATTACHED_DEV_JIG_UART_OFF_MUIC) {
+		if ((new_dev != ATTACHED_DEV_JIG_UART_OFF_MUIC) &&
+					(new_dev != ATTACHED_DEV_JIG_UART_OFF_VB_MUIC)) {
 			pr_warn("%s:%s new(%d)!=attached(%d), assume detach\n",
 					MUIC_DEV_NAME, __func__, new_dev,
 					muic_data->attached_dev);
@@ -1230,6 +1251,13 @@ static void sm5703_muic_handle_attach(struct sm5703_muic_data *muic_data,
 		break;
 
 	case ATTACHED_DEV_JIG_UART_ON_MUIC:
+		if (new_dev != muic_data->attached_dev) {
+			pr_warn("%s:%s new(%d)!=attached(%d), assume detach\n",
+					MUIC_DEV_NAME, __func__, new_dev,
+					muic_data->attached_dev);
+			ret = detach_jig_uart_boot_off(muic_data);
+		}
+		break;
 	case ATTACHED_DEV_DESKDOCK_MUIC:
 	case ATTACHED_DEV_DESKDOCK_VB_MUIC:
 		if (new_dev != muic_data->attached_dev) {
@@ -1239,12 +1267,15 @@ static void sm5703_muic_handle_attach(struct sm5703_muic_data *muic_data,
 			ret = detach_deskdock(muic_data);
 		}
 		break;
-	case ATTACHED_DEV_CHARGING_CABLE_MUIC:
+//	case ATTACHED_DEV_CHARGING_CABLE_MUIC:
+	case ATTACHED_DEV_UNDEFINED_RANGE_MUIC:
 		if (new_dev != muic_data->attached_dev) {
 			pr_warn("%s:%s new(%d)!=attached(%d), assume detach\n",
 					MUIC_DEV_NAME, __func__, new_dev,
 					muic_data->attached_dev);
-			ret = detach_ps_cable(muic_data);
+//			ret = detach_ps_cable(muic_data);
+			muic_data->attached_dev = ATTACHED_DEV_NONE_MUIC;
+			break;
 		}
 		break;
 	case ATTACHED_DEV_UNDEFINED_CHARGING_MUIC:
@@ -1274,11 +1305,11 @@ static void sm5703_muic_handle_attach(struct sm5703_muic_data *muic_data,
 		muic_data->attached_dev = new_dev;
 		break;
 	case ATTACHED_DEV_JIG_UART_OFF_MUIC:
+	case ATTACHED_DEV_JIG_UART_OFF_VB_MUIC:
 		new_dev = attach_jig_uart_boot_off(muic_data, new_dev, vbvolt);
 		break;
 	case ATTACHED_DEV_JIG_UART_ON_MUIC:
-		/* call attach_deskdock to wake up the device */
-		ret = attach_deskdock(muic_data, new_dev);
+		new_dev = attach_jig_uart_boot_on(muic_data, new_dev);
 		break;
 	case ATTACHED_DEV_JIG_USB_OFF_MUIC:
 		ret = attach_jig_usb_boot_off(muic_data, vbvolt);
@@ -1294,8 +1325,10 @@ static void sm5703_muic_handle_attach(struct sm5703_muic_data *muic_data,
 			new_dev = ATTACHED_DEV_DESKDOCK_VB_MUIC;
 		ret = attach_deskdock(muic_data, new_dev);
 		break;
-	case ATTACHED_DEV_CHARGING_CABLE_MUIC:
-		ret = attach_ps_cable(muic_data, new_dev);
+//	case ATTACHED_DEV_CHARGING_CABLE_MUIC:
+//		ret = attach_ps_cable(muic_data, new_dev);
+	case ATTACHED_DEV_UNDEFINED_RANGE_MUIC:
+		muic_data->attached_dev = new_dev;
 		break;
 	case ATTACHED_DEV_UNDEFINED_CHARGING_MUIC:
 		com_to_open_with_vbus(muic_data);
@@ -1333,11 +1366,11 @@ static void sm5703_muic_handle_detach(struct sm5703_muic_data *muic_data)
 	case ATTACHED_DEV_TA_MUIC:
 		muic_data->attached_dev = ATTACHED_DEV_NONE_MUIC;
 		break;
+	case ATTACHED_DEV_JIG_UART_ON_MUIC:
 	case ATTACHED_DEV_JIG_UART_OFF_VB_MUIC:
 	case ATTACHED_DEV_JIG_UART_OFF_MUIC:
 		ret = detach_jig_uart_boot_off(muic_data);
 		break;
-	case ATTACHED_DEV_JIG_UART_ON_MUIC:
 	case ATTACHED_DEV_DESKDOCK_MUIC:
 	case ATTACHED_DEV_DESKDOCK_VB_MUIC:
 		ret = detach_deskdock(muic_data);
@@ -1348,8 +1381,10 @@ static void sm5703_muic_handle_detach(struct sm5703_muic_data *muic_data)
 	case ATTACHED_DEV_MHL_MUIC:
 		ret = detach_mhl(muic_data);
 		break;
-	case ATTACHED_DEV_CHARGING_CABLE_MUIC:
-		ret = detach_ps_cable(muic_data);
+//	case ATTACHED_DEV_CHARGING_CABLE_MUIC:
+//		ret = detach_ps_cable(muic_data);
+	case ATTACHED_DEV_UNDEFINED_RANGE_MUIC:
+		muic_data->attached_dev = ATTACHED_DEV_NONE_MUIC;
 		break;
 	case ATTACHED_DEV_NONE_MUIC:
 		pr_info("%s:%s duplicated(NONE)\n", MUIC_DEV_NAME, __func__);
@@ -1554,8 +1589,9 @@ static void sm5703_muic_detect_dev(struct sm5703_muic_data *muic_data)
 #endif
 		case ADC_CHARGING_CABLE:
 			intr = MUIC_INTR_ATTACH;
-			new_dev = ATTACHED_DEV_CHARGING_CABLE_MUIC;
-			pr_info("%s : PS_CABLE DETECTED\n", MUIC_DEV_NAME);
+//			new_dev = ATTACHED_DEV_CHARGING_CABLE_MUIC;
+//			pr_info("%s : PS_CABLE DETECTED\n", MUIC_DEV_NAME);
+			new_dev = ATTACHED_DEV_UNDEFINED_RANGE_MUIC;
 			break;
 		case ADC_OPEN:
 			/* sometimes muic fails to catch JIG_UART_OFF detaching */

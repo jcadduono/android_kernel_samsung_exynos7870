@@ -1818,6 +1818,11 @@ static int decon_set_win_buffer(struct decon_device *decon, struct decon_win *wi
 	decon_set_alpha_blending(win_config, regs, win_no,
 				win->fbinfo->var.transp.length);
 
+	if (win_config->protection && 86 <= win_config->dst.w && win_config->dst.w <= 170)
+		regs->wincon[win_no] |= WINCON_BURSTLEN_8WORD;
+	else
+		regs->wincon[win_no] |= WINCON_BURSTLEN_16WORD;
+
 	decon_dbg("win[%d] SRC:(%d,%d) %dx%d  DST:(%d,%d) %dx%d\n", win_no,
 			win_config->src.x, win_config->src.y,
 			win_config->src.f_w, win_config->src.f_h,
@@ -2108,15 +2113,19 @@ void decon_set_qos(struct decon_device *decon, struct decon_reg_data *regs,
 			bool is_after, bool is_default_qos)
 {
 	u64 req_bandwidth;
+	int window_cnt = 0;
 
 	req_bandwidth = regs ? (is_default_qos ? 0 : regs->bandwidth) :
-			(decon->max_win_bw * 3);
+			(decon->max_win_bw * decon->pdata->max_win);
 
 	if (decon->prev_bw == req_bandwidth)
 		return;
 
+	window_cnt = regs ? regs->num_of_window : decon->pdata->max_win;
+
 	if ((is_after && (decon->prev_bw > req_bandwidth)) ||
 	    (!is_after && (decon->prev_bw < req_bandwidth))) {
+	    exynos_update_overlay_wincnt(window_cnt);
 		exynos_update_media_scenario(TYPE_DECON_INT, req_bandwidth, 0);
 		decon->prev_bw = req_bandwidth;
 	}
@@ -2401,14 +2410,14 @@ static int decon_set_win_config(struct decon_device *decon,
 			regs->wincon[i] |= WINCON_ENWIN;
 		else
 			regs->wincon[i] &= ~WINCON_ENWIN;
-
+#if 0
 		/*
 		 * Because BURSTLEN field does not have shadow register,
 		 * this bit field should be retain always.
 		 * exynos7870 must be set 16 burst
 		 */
 		regs->wincon[i] |= WINCON_BURSTLEN_16WORD;
-
+#endif
 		regs->winmap[i] = color_map;
 		if (enabled)
 			regs->num_of_window++;

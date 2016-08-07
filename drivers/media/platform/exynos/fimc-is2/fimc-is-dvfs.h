@@ -31,6 +31,9 @@
 #define DECLARE_DVFS_CHK_FUNC(__SCENARIO) \
 	int check_ ## __SCENARIO \
 		(struct fimc_is_device_ischain *device, int position, int resol, int fps, int stream_cnt, ...)
+#define DECLARE_EXT_DVFS_CHK_FUNC(__SCENARIO) \
+	int check_ ## __SCENARIO \
+		(struct fimc_is_device_sensor *device, int position, int resol, int fps, int stream_cnt, ...)
 #define GET_KEY_FOR_DVFS_TBL_IDX(__HAL_VER) \
 	(#__HAL_VER "_TBL_IDX")
 
@@ -56,6 +59,7 @@ struct fimc_is_dvfs_scenario {
 
 	/* function pointer to check a scenario */
 	int (*check_func)(struct fimc_is_device_ischain *device, int position, int resol, int fps, int stream_cnt, ...);
+	int (*ext_check_func)(struct fimc_is_device_sensor *device, int position, int resol, int fps, int stream_cnt, ...);
 };
 
 struct fimc_is_dvfs_scenario_ctrl {
@@ -70,6 +74,7 @@ int fimc_is_dvfs_init(struct fimc_is_resourcemgr *resourcemgr);
 int fimc_is_dvfs_sel_table(struct fimc_is_resourcemgr *resourcemgr);
 int fimc_is_dvfs_sel_static(struct fimc_is_device_ischain *device);
 int fimc_is_dvfs_sel_dynamic(struct fimc_is_device_ischain *device);
+int fimc_is_dvfs_sel_external(struct fimc_is_device_sensor *device);
 int fimc_is_get_qos(struct fimc_is_core *core, u32 type, u32 scenario_id);
-int fimc_is_set_dvfs(struct fimc_is_device_ischain *device, u32 scenario_id);
+int fimc_is_set_dvfs(struct fimc_is_core *core, struct fimc_is_device_ischain *device, u32 scenario_id);
 #endif

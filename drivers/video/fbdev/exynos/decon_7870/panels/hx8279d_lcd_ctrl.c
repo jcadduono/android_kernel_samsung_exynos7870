@@ -61,7 +61,7 @@ struct lcd_info {
 
 int _dsim_write_hl_data(struct dsim_device *dsim, const u8 *cmd, u32 cmdSize)
 {
-	int ret;
+	int ret = 0;
 	int retry;
 	struct panel_private *panel = &dsim->priv;
 	struct lcd_info *lcd = dsim->priv.par;
@@ -111,6 +111,10 @@ static int dsim_panel_set_brightness(struct dsim_device *dsim, int force)
 
 
 	bl_reg[1] = lcd->bl * HX8279D_PWM_DUTY_MAX / 0xFF;
+
+	/* OUTDOOR MODE */
+	if (lcd->auto_brightness >= 6)
+		bl_reg[1] = 0xFF;
 
 	ret = _dsim_write_hl_data(dsim, SEQ_TABLE_4, ARRAY_SIZE(SEQ_TABLE_4));
 	if (ret < 0) {
@@ -171,6 +175,222 @@ static const struct backlight_ops panel_backlight_ops = {
 	.update_status = panel_set_brightness,
 };
 
+
+static int hx8279d_exit(struct dsim_device *dsim)
+{
+	int ret = 0;
+	struct lcd_info *lcd = dsim->priv.par;
+
+	dev_info(&lcd->ld->dev, "%s\n", __func__);
+
+	ret = _dsim_write_hl_data(dsim, SEQ_TABLE_0, ARRAY_SIZE(SEQ_TABLE_0));
+	if (ret < 0) {
+		dsim_err("%s : fail to write CMD : SEQ_TABLE_0\n", __func__);
+		goto exit_err;
+	}
+
+	ret = _dsim_write_hl_data(dsim, SEQ_DISPLAY_OFF, ARRAY_SIZE(SEQ_DISPLAY_OFF));
+	if (ret < 0) {
+		dsim_err("%s : fail to write CMD : SEQ_DISPLAY_OFF\n", __func__);
+		goto exit_err;
+	}
+	msleep(50);
+
+	ret = _dsim_write_hl_data(dsim, SEQ_SLEEP_IN, ARRAY_SIZE(SEQ_SLEEP_IN));
+	if (ret < 0) {
+		dsim_err("%s : fail to write CMD : SEQ_SLEEP_IN\n", __func__);
+		goto exit_err;
+	}
+	msleep(120);
+
+exit_err:
+	return ret;
+}
+
+static int dsi_write_table(struct dsim_device *dsim, const struct mipi_cmd *table, int size)
+{
+	int i, table_size, ret = 0;
+	const struct mipi_cmd *table_ptr;
+
+	table_ptr = table;
+	table_size = size;
+
+	for (i = 0; i < table_size; i++) {
+		ret = _dsim_write_hl_data(dsim, table_ptr[i].cmd, ARRAY_SIZE(table_ptr[i].cmd));
+
+		if (ret < 0) {
+			dsim_err("%s : fail to write CMD : 0x%02x, 0x%02x\n", __func__, table_ptr[i].cmd[0], table_ptr[i].cmd[1]);
+			goto write_exit;
+		}
+	}
+
+write_exit:
+	return ret;
+}
+
+static int hx8279d_read_id(struct dsim_device *dsim)
+{
+	int i = 0;
+	struct panel_private *panel = &dsim->priv;
+	struct lcd_info *lcd = dsim->priv.par;
+
+	dsim_info("MDD : %s was called\n", __func__);
+
+	if (lcdtype == 0) {
+		panel->lcdConnected = PANEL_DISCONNEDTED;
+		goto read_exit;
+	}
+
+	lcd->id[0] = (lcdtype & 0xFF0000) >> 16;
+	lcd->id[1] = (lcdtype & 0x00FF00) >> 8;
+	lcd->id[2] = (lcdtype & 0x0000FF) >> 0;
+
+	dsim_info("READ ID : ");
+	for (i = 0; i < 3; i++)
+		dsim_info("%02x, ", lcd->id[i]);
+	dsim_info("\n");
+
+read_exit:
+	return 0;
+}
+
+static int hx8279d_displayon(struct dsim_device *dsim)
+{
+	int ret = 0;
+	struct lcd_info *lcd = dsim->priv.par;
+
+	dev_info(&lcd->ld->dev, "%s\n", __func__);
+
+	ret = _dsim_write_hl_data(dsim, SEQ_TABLE_0, ARRAY_SIZE(SEQ_TABLE_0));
+	if (ret < 0) {
+		dsim_err("%s : fail to write CMD : SEQ_TABLE_0\n", __func__);
+		goto display_err;
+	}
+
+	ret = _dsim_write_hl_data(dsim, SEQ_DISPLAY_ON, ARRAY_SIZE(SEQ_DISPLAY_ON));
+	if (ret < 0) {
+		dsim_err("%s : fail to write CMD : SEQ_DISPLAY_ON\n", __func__);
+		goto display_err;
+	}
+
+	msleep(40);
+
+	dsim_panel_set_brightness(dsim, 1);
+
+display_err:
+	return ret;
+}
+
+static int hx8279d_init(struct dsim_device *dsim)
+{
+	int ret = 0;
+	struct lcd_info *lcd = dsim->priv.par;
+
+	dev_info(&lcd->ld->dev, "%s\n", __func__);
+
+	ret = _dsim_write_hl_data(dsim, SEQ_TABLE_5, ARRAY_SIZE(SEQ_TABLE_5));
+	if (ret < 0) {
+		dsim_err("%s : fail to write CMD : SEQ_TABLE_5\n", __func__);
+		goto init_err;
+	}
+
+	ret = _dsim_write_hl_data(dsim, SEQ_EOTP_DISABLE, ARRAY_SIZE(SEQ_EOTP_DISABLE));
+	if (ret < 0) {
+		dsim_err("%s : fail to write CMD : SEQ_EOTP_DISABLE\n", __func__);
+		goto init_err;
+	}
+
+	ret = _dsim_write_hl_data(dsim, SEQ_TLPX_80NS, ARRAY_SIZE(SEQ_TLPX_80NS));
+	if (ret < 0) {
+		dsim_err("%s : fail to write CMD : SEQ_TLPX_80NS\n", __func__);
+		goto init_err;
+	}
+
+	ret = _dsim_write_hl_data(dsim, SEQ_TABLE_0, ARRAY_SIZE(SEQ_TABLE_0));
+	if (ret < 0) {
+		dsim_err("%s : fail to write CMD : SEQ_TABLE_5\n", __func__);
+		goto init_err;
+	}
+
+	ret = _dsim_write_hl_data(dsim, SEQ_SCREEN_OFF, ARRAY_SIZE(SEQ_SCREEN_OFF));
+	if (ret < 0) {
+		dsim_err("%s : fail to write CMD : SEQ_SCREEN_OFF\n", __func__);
+		goto init_err;
+	}
+
+	ret = _dsim_write_hl_data(dsim, SEQ_TABLE_4, ARRAY_SIZE(SEQ_TABLE_4));
+	if (ret < 0) {
+		dsim_err("%s : fail to write CMD : SEQ_TABLE_4\n", __func__);
+		goto init_err;
+	}
+
+	ret = _dsim_write_hl_data(dsim, SEQ_BL_00, ARRAY_SIZE(SEQ_BL_00));
+	if (ret < 0) {
+		dsim_err("%s : fail to write CMD : SEQ_BL_00\n", __func__);
+		goto init_err;
+	}
+
+	if (lcdtype == BOE_PANEL_ID) {
+		dev_info(&lcd->ld->dev, "%s BOE PANEL. [0x%x]\n", __func__, lcdtype);
+		ret = dsi_write_table(dsim, SEQ_CMD_TABLE, ARRAY_SIZE(SEQ_CMD_TABLE));
+		if (ret < 0) {
+			dsim_err("%s : fail to write CMD : SEQ_CMD_TABLE\n", __func__);
+			goto init_err;
+		}
+	} else {
+		dev_info(&lcd->ld->dev, "%s CPT PANEL. [0x%x]\n", __func__, lcdtype);
+		ret = dsi_write_table(dsim, SEQ_CMD_TABLE_CPT, ARRAY_SIZE(SEQ_CMD_TABLE_CPT));
+		if (ret < 0) {
+			dsim_err("%s : fail to write CMD : SEQ_CMD_TABLE_CPT\n", __func__);
+			goto init_err;
+		}
+	}
+
+	ret = dsi_write_table(dsim, SEQ_CMD_TABLE_BL, ARRAY_SIZE(SEQ_CMD_TABLE_BL));
+	if (ret < 0) {
+		dsim_err("%s : fail to write CMD : SEQ_CMD_TABLE_BL\n", __func__);
+		goto init_err;
+	}
+
+	msleep(110);
+
+init_err:
+	return ret;
+}
+
+static int hx8279d_probe(struct dsim_device *dsim)
+{
+	int ret = 0;
+	struct panel_private *priv = &dsim->priv;
+	struct lcd_info *lcd = dsim->priv.par;
+
+	pr_info("%s: was called\n", __func__);
+
+	priv->lcdConnected = PANEL_CONNECTED;
+
+	lcd->bd->props.max_brightness = UI_MAX_BRIGHTNESS;
+	lcd->bd->props.brightness = UI_DEFAULT_BRIGHTNESS;
+
+	lcd->temperature = NORMAL_TEMPERATURE;
+	lcd->acl_enable = 0;
+	lcd->current_acl = 0;
+	lcd->auto_brightness = 0;
+	lcd->siop_enable = 0;
+	lcd->current_hbm = 0;
+
+	hx8279d_read_id(dsim);
+
+	return ret;
+}
+
+struct dsim_panel_ops hx8279d_panel_ops = {
+	.probe		= hx8279d_probe,
+	.displayon	= hx8279d_displayon,
+	.exit		= hx8279d_exit,
+	.init		= hx8279d_init,
+};
+
+
 static ssize_t lcd_type_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -191,6 +411,29 @@ static ssize_t window_type_show(struct device *dev,
 	sprintf(buf, "%x %x %x\n", lcd->id[0], lcd->id[1], lcd->id[2]);
 
 	return strlen(buf);
+}
+
+static int dsim_read_hl_data_offset(struct dsim_device *dsim, u8 addr, u32 size, u8 *buf, u32 offset)
+{
+	int ret;
+	unsigned char wbuf[] = {0xB0, 0};
+	struct lcd_info *lcd = dsim->priv.par;
+
+	wbuf[1] = offset;
+
+	ret = _dsim_write_hl_data(dsim, wbuf, ARRAY_SIZE(wbuf));
+	if (ret < 0) {
+		dsim_err("%s : fail to write CMD : wbuf\n", __func__);
+		goto exit;
+	}
+
+	ret = dsim_read_hl_data(dsim, addr, size, buf);
+
+	if (ret < 1)
+		dev_err(&lcd->ld->dev, "%s failed\n", __func__);
+
+exit:
+	return ret;
 }
 
 static ssize_t dump_register_show(struct device *dev,
@@ -216,35 +459,10 @@ static ssize_t dump_register_show(struct device *dev,
 	dump = kzalloc(len * sizeof(u8), GFP_KERNEL);
 
 	if (lcd->state == PANEL_STATE_RESUMED) {
-		switch(table) {
-			case 1:
-				ret = _dsim_write_hl_data(dsim, SEQ_TABLE_1, ARRAY_SIZE(SEQ_TABLE_1));
-				break;
-			case 2:
-				ret = _dsim_write_hl_data(dsim, SEQ_TABLE_2, ARRAY_SIZE(SEQ_TABLE_2));
-				break;
-			case 3:
-				ret = _dsim_write_hl_data(dsim, SEQ_TABLE_3, ARRAY_SIZE(SEQ_TABLE_3));
-				break;
-			case 4:
-				ret = _dsim_write_hl_data(dsim, SEQ_TABLE_4, ARRAY_SIZE(SEQ_TABLE_4));
-				break;
-			case 5:
-				ret = _dsim_write_hl_data(dsim, SEQ_TABLE_5, ARRAY_SIZE(SEQ_TABLE_5));
-				break;
-			case 6:
-				ret = _dsim_write_hl_data(dsim, SEQ_TABLE_6, ARRAY_SIZE(SEQ_TABLE_6));
-				break;
-			case 7:
-				ret = _dsim_write_hl_data(dsim, SEQ_TABLE_7, ARRAY_SIZE(SEQ_TABLE_7));
-				break;
-			default:
-				ret = _dsim_write_hl_data(dsim, SEQ_TABLE_0, ARRAY_SIZE(SEQ_TABLE_0));
-				break;
-			}
-
-		ret = dsim_read_hl_data(dsim, reg, len, dump);
-
+		if (table)
+			ret = dsim_read_hl_data_offset(dsim, reg, len, dump, table);
+		else
+			ret = dsim_read_hl_data(dsim, reg, len, dump);
 	}
 
 	pos += sprintf(pos, "+ [%02X]\n", reg);
@@ -323,13 +541,14 @@ static ssize_t write_register_store(struct device *dev,
 
 	if (count <= 1) {
 		dev_info(&lcd->ld->dev, "%s: invalid input, %s\n", __func__, printbuf);
-		return -EINVAL;
+		goto exit;
 	} else
 		dev_info(&lcd->ld->dev, "%s: %s\n", __func__, printbuf);
 
 	if (lcd->state == PANEL_STATE_RESUMED)
 		ret = dsim_write_hl_data(dsim, seqbuf, count);
 
+exit:
 	kfree(printbuf);
 
 	return size;
@@ -734,195 +953,3 @@ struct mipi_dsim_lcd_driver hx8279d_mipi_lcd_driver = {
 	.suspend	= dsim_panel_suspend,
 };
 
-static int hx8279d_exit(struct dsim_device *dsim)
-{
-	int ret = 0;
-	struct lcd_info *lcd = dsim->priv.par;
-
-	dev_info(&lcd->ld->dev, "%s\n", __func__);
-
-	ret = _dsim_write_hl_data(dsim, SEQ_TABLE_0, ARRAY_SIZE(SEQ_TABLE_0));
-	if (ret < 0) {
-		dsim_err("%s : fail to write CMD : SEQ_TABLE_0\n", __func__);
-		goto exit_err;
-	}
-
-	ret = _dsim_write_hl_data(dsim, SEQ_DISPLAY_OFF, ARRAY_SIZE(SEQ_DISPLAY_OFF));
-	if (ret < 0) {
-		dsim_err("%s : fail to write CMD : SEQ_DISPLAY_OFF\n", __func__);
-		goto exit_err;
-	}
-	msleep(50);
-
-	ret = _dsim_write_hl_data(dsim, SEQ_SLEEP_IN, ARRAY_SIZE(SEQ_SLEEP_IN));
-	if (ret < 0) {
-		dsim_err("%s : fail to write CMD : SEQ_SLEEP_IN\n", __func__);
-		goto exit_err;
-	}
-	msleep(120);
-
-exit_err:
-	return ret;
-}
-
-static int dsi_write_table(struct dsim_device *dsim, const struct mipi_cmd *table, int size)
-{
-	int i, table_size, ret = 0;
-	const struct mipi_cmd *table_ptr;
-
-	table_ptr = table;
-	table_size = size;
-
-	for (i = 0; i < table_size; i++) {
-		ret = _dsim_write_hl_data(dsim, table_ptr[i].cmd, ARRAY_SIZE(table_ptr[i].cmd));
-
-		if (ret < 0) {
-			dsim_err("%s : fail to write CMD : 0x%02x, 0x%02x\n", __func__, table_ptr[i].cmd[0], table_ptr[i].cmd[1]);
-			goto write_exit;
-		}
-	}
-
-write_exit:
-	return ret;
-}
-
-static int hx8279d_read_id(struct dsim_device *dsim)
-{
-	int i = 0;
-	struct panel_private *panel = &dsim->priv;
-	struct lcd_info *lcd = dsim->priv.par;
-
-	dsim_info("MDD : %s was called\n", __func__);
-
-	if (lcdtype == 0) {
-		panel->lcdConnected = PANEL_DISCONNEDTED;
-		goto read_exit;
-	}
-
-	lcd->id[0] = (lcdtype & 0xFF0000) >> 16;
-	lcd->id[1] = (lcdtype & 0x00FF00) >> 8;
-	lcd->id[2] = (lcdtype & 0x0000FF) >> 0;
-
-	dsim_info("READ ID : ");
-	for (i = 0; i < 3; i++)
-		dsim_info("%02x, ", lcd->id[i]);
-	dsim_info("\n");
-
-read_exit:
-	return 0;
-}
-
-static int hx8279d_displayon(struct dsim_device *dsim)
-{
-	int ret = 0;
-	struct lcd_info *lcd = dsim->priv.par;
-
-	dev_info(&lcd->ld->dev, "%s\n", __func__);
-
-	ret = _dsim_write_hl_data(dsim, SEQ_TABLE_0, ARRAY_SIZE(SEQ_TABLE_0));
-	if (ret < 0) {
-		dsim_err("%s : fail to write CMD : SEQ_TABLE_0\n", __func__);
-		goto display_err;
-	}
-
-	ret = _dsim_write_hl_data(dsim, SEQ_DISPLAY_ON, ARRAY_SIZE(SEQ_DISPLAY_ON));
-	if (ret < 0) {
-		dsim_err("%s : fail to write CMD : SEQ_DISPLAY_ON\n", __func__);
-		goto display_err;
-	}
-
-
-	dsim_panel_set_brightness(dsim, 1);
-
-display_err:
-	return ret;
-}
-
-static int hx8279d_init(struct dsim_device *dsim)
-{
-	int ret = 0;
-	struct lcd_info *lcd = dsim->priv.par;
-
-	dev_info(&lcd->ld->dev, "%s\n", __func__);
-
-	ret = _dsim_write_hl_data(dsim, SEQ_TABLE_5, ARRAY_SIZE(SEQ_TABLE_5));
-	if (ret < 0) {
-		dsim_err("%s : fail to write CMD : SEQ_TABLE_5\n", __func__);
-		goto init_err;
-	}
-
-	ret = _dsim_write_hl_data(dsim, SEQ_EOTP_DISABLE, ARRAY_SIZE(SEQ_EOTP_DISABLE));
-	if (ret < 0) {
-		dsim_err("%s : fail to write CMD : SEQ_EOTP_DISABLE\n", __func__);
-		goto init_err;
-	}
-
-	ret = _dsim_write_hl_data(dsim, SEQ_TLPX_80NS, ARRAY_SIZE(SEQ_TLPX_80NS));
-	if (ret < 0) {
-		dsim_err("%s : fail to write CMD : SEQ_TLPX_80NS\n", __func__);
-		goto init_err;
-	}
-
-	ret = _dsim_write_hl_data(dsim, SEQ_TABLE_0, ARRAY_SIZE(SEQ_TABLE_0));
-	if (ret < 0) {
-		dsim_err("%s : fail to write CMD : SEQ_TABLE_5\n", __func__);
-		goto init_err;
-	}
-
-	ret = _dsim_write_hl_data(dsim, SEQ_DISPLAY_OFF, ARRAY_SIZE(SEQ_DISPLAY_OFF));
-	if (ret < 0) {
-		dsim_err("%s : fail to write CMD : SEQ_DISPLAY_OFF\n", __func__);
-		goto init_err;
-	}
-
-	msleep(100);
-
-	ret = dsi_write_table(dsim, SEQ_CMD_TABLE, ARRAY_SIZE(SEQ_CMD_TABLE));
-	if (ret < 0) {
-		dsim_err("%s : fail to write CMD : SEQ_CMD_TABLE\n", __func__);
-		goto init_err;
-	}
-
-	ret = dsi_write_table(dsim, SEQ_CMD_TABLE_BL, ARRAY_SIZE(SEQ_CMD_TABLE_BL));
-	if (ret < 0) {
-		dsim_err("%s : fail to write CMD : SEQ_CMD_TABLE_BL\n", __func__);
-		goto init_err;
-	}
-
-	msleep(15);
-
-init_err:
-	return ret;
-}
-
-static int hx8279d_probe(struct dsim_device *dsim)
-{
-	int ret = 0;
-	struct panel_private *priv = &dsim->priv;
-	struct lcd_info *lcd = dsim->priv.par;
-
-	pr_info("%s: was called\n", __func__);
-
-	priv->lcdConnected = PANEL_CONNECTED;
-
-	lcd->bd->props.max_brightness = UI_MAX_BRIGHTNESS;
-	lcd->bd->props.brightness = UI_DEFAULT_BRIGHTNESS;
-
-	lcd->temperature = NORMAL_TEMPERATURE;
-	lcd->acl_enable = 0;
-	lcd->current_acl = 0;
-	lcd->auto_brightness = 0;
-	lcd->siop_enable = 0;
-	lcd->current_hbm = 0;
-
-	hx8279d_read_id(dsim);
-
-	return ret;
-}
-
-struct dsim_panel_ops hx8279d_panel_ops = {
-	.probe		= hx8279d_probe,
-	.displayon	= hx8279d_displayon,
-	.exit		= hx8279d_exit,
-	.init		= hx8279d_init,
-};

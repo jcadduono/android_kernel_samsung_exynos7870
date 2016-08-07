@@ -153,8 +153,8 @@ static void cm3323_vdd_onoff(struct cm3323_p *data, bool onoff)
 		data->vdd_pmic = devm_regulator_get(&data->i2c_client->dev, "cm3323-i2c,vdd");
 		if (IS_ERR(data->vdd_pmic)) {
 			SENSOR_ERR("cannot get vdd\n");
-			data->vdd_pmic = NULL;
 			devm_regulator_put(data->vdd_pmic);
+			data->vdd_pmic = NULL;
 			return;
 		} 
 	}
@@ -390,7 +390,7 @@ static int cm3323_input_init(struct cm3323_p *data)
 
 	ret = input_register_device(dev);
 	if (ret < 0) {
-		input_free_device(data->input);
+		input_free_device(dev);
 		return ret;
 	}
 

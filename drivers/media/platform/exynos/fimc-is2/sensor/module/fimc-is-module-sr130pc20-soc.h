@@ -91,6 +91,7 @@ struct sensor_regset_table {
 	struct sensor_regset fps_7;
 	struct sensor_regset fps_15;
 	struct sensor_regset fps_25_camcorder;
+	struct sensor_regset fps_30_camcorder;
 	struct sensor_regset wb_auto;
 	struct sensor_regset wb_daylight;
 	struct sensor_regset wb_cloudy;
@@ -127,6 +128,8 @@ struct sensor_regset_table {
 	struct sensor_regset resol_800_600;
 	struct sensor_regset resol_1280_960;
 	struct sensor_regset resol_1600_1200;
+	struct sensor_regset resol_176_144_capture;
+	struct sensor_regset resol_320_240_capture;
 	struct sensor_regset resol_640_480_capture;
 	struct sensor_regset resol_1280_960_capture;
 	struct sensor_regset capture_mode;

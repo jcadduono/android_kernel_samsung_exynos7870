@@ -540,6 +540,23 @@ config LEDS_SM5705
 	help
 	  This option enables support for the LEDs on the SM5705.
 
+config FLASHLIGHT
+	bool "Flashlight Support"
+	help
+	  This option enables the led sysfs class in /sys/class/flashlight.
+
+config SM_FLASH_LED
+	tristate "Siliconmitus flash LED driver support"
+	depends on FLASHLIGHT
+	help
+	  Say Y here to enable Siliconmitus's flash LED driver HAL architecture
+
+config FLED_SM5703
+	tristate "Siliconmitus SM5703 flash LED driver"
+	depends on SM_FLASH_LED
+	help
+	  A driver for Siliconmitus SM5703 flash LED
+
 config LEDS_SUPPORT_FRONT_FLASH
 	bool "LED support for Front Flash"
 	help

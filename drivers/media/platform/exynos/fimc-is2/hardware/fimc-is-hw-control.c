@@ -622,7 +622,6 @@ int fimc_is_hardware_grp_shot(struct fimc_is_hardware *hardware, u32 instance,
 	hw_frame->rcount	= frame->rcount;
 	hw_frame->bak_flag	= frame->bak_flag;
 	hw_frame->out_flag	= frame->out_flag;
-	hw_frame->ndone_flag	= 0;
 	hw_frame->core_flag	= 0;
 	atomic_set(&hw_frame->shot_done_flag, 1);
 
@@ -1142,12 +1141,13 @@ void fimc_is_hardware_force_stop(struct fimc_is_hardware *hardware,
 			if (frame == NULL)
 				break;
 
-			set_bit(hw_ip->id, &frame->core_flag);
-
 			info_hw("late_list[%d] [F:%d][%d][O:0x%lx][C:0x%lx][(%d)",
 				list_index, frame->fcount, frame->type,
 				frame->out_flag, frame->core_flag,
 				framemgr_late->queued_count[list_index]);
+
+			set_bit(hw_ip->id, &frame->core_flag);
+
 			ret = fimc_is_hardware_frame_ndone(hw_ip, frame, instance, true);
 			if (ret) {
 				err_hw("[%d]hardware_frame_ndone fail (%d)", instance, hw_ip->id);
@@ -1503,7 +1503,9 @@ int check_core_end(struct fimc_is_hw_ip *hw_ip, u32 hw_fcount,
 				"[O:0x%lx]",
 				frame->instance, hw_ip->id, frame->fcount,
 				output_id, frame->core_flag, frame->out_flag);
+#if 0 // temporarily blocked for front recording stop kernel panic
 			return -EINVAL;
+#endif
 		}
 	} else {
 		dbg_hw("[ID:%d][%d,F:%d]FRAME COUNT invalid",
@@ -1670,11 +1672,6 @@ int fimc_is_hardware_frame_done(struct fimc_is_hw_ip *hw_ip, struct fimc_is_fram
 			break;
 		}
 
-		if (status != 0) {
-			set_bit(wq_id, &frame->ndone_flag);
-			dbg_hw("[%d]FRAME NDONE (%d)\n", frame->instance, hw_ip->id);
-		}
-
 		ret = do_frame_done_work_func(hw_ip->itf,
 				wq_id,
 				frame->instance,
@@ -1774,7 +1771,7 @@ int fimc_is_hardware_shot_done(struct fimc_is_hw_ip *hw_ip, struct fimc_is_frame
 		goto free_frame;
 	}
 
-	if (frame->ndone_flag != 0) {
+	if (done_type == FRAME_DONE_LATE_SHOT || done_type == FRAME_DONE_FORCE) {
 		cmd      = ISR_NDONE;
 		err_type = IS_SHOT_UNKNOWN;
 	} else {
@@ -1855,13 +1852,24 @@ int fimc_is_hardware_frame_ndone(struct fimc_is_hw_ip *ldr_hw_ip,
 	struct fimc_is_hardware *hardware;
 	enum fimc_is_hardware_id hw_id = DEV_HW_END;
 	int hw_list[GROUP_HW_MAX], hw_index;
+	struct fimc_is_group *parent;
 	int hw_maxnum = 0;
-
-	if (late_flag == true && frame != NULL)
-		info_hw("frame_ndone [F:%d](%d)\n", frame->fcount, late_flag);
 
 	group    = ldr_hw_ip->group[instance];
 	hardware = ldr_hw_ip->hardware;
+
+	if (late_flag == true && frame != NULL) {
+		parent = group;
+		while (parent->parent)
+			parent = parent->parent;
+
+		info_hw("frame_ndone [F:%d][O:0x%lx][C:0x%lx]\n", frame->fcount,
+				frame->out_flag, frame->core_flag);
+
+		/* if there is not any out_flag without leader, forcely set the core flag */
+		if (!OUT_FLAG(frame->out_flag, parent->leader.id))
+			set_bit(ldr_hw_ip->id, &frame->core_flag);
+	}
 
 	while (group) {
 		hw_maxnum = fimc_is_get_hw_list(group->id, hw_list);

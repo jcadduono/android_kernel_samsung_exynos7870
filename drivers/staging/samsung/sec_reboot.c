@@ -16,12 +16,14 @@
 #include <linux/of_gpio.h>
 #include <linux/input.h>
 #endif
-#include <linux/sec_debug.h>
+#include <linux/sec_ext.h>
 #include <linux/battery/sec_battery.h>
 #include <linux/sec_batt.h>
 
 #include <asm/cacheflush.h>
 #include <asm/system_misc.h>
+
+#include <soc/samsung/exynos-pmu.h>
 
 /* function ptr for original arm_pm_restart */
 void (*mach_restart)(enum reboot_mode mode, const char *cmd);

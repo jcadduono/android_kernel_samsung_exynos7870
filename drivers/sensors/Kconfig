@@ -303,6 +303,13 @@ config SENSORS_SX9500_WIFI_REGULATOR_ONOFF
 	  Say Y here if you use regulator for grip sensor for WIFI.
 	  This option enables regulator for grip sensor using
 	  SemTech sx9500 device driver for WIFI.
+	  
+config SENSORS_GRIP_CHK_HALLIC
+	depends on I2C
+	tristate "grip sensor check to hallic"
+	default n
+	help
+	 This option enables grip sensors checking hall ic status.
 
 config SENSORS_MAX86900
 	tristate "MAXIM MAX86900 HRM Sensor"

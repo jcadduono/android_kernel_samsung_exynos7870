@@ -1190,22 +1190,7 @@ static void cod3026x_update_playback_otp(struct snd_soc_codec *codec)
 
 static int cod3026x_hp_playback_init(struct snd_soc_codec *codec)
 {
-	int mcq_on;
-	unsigned char ctrl_hps;
 	dev_dbg(codec->dev, "%s called\n", __func__);
-
-	/* Increase HP current to 4uA in MCQ mode(192Khz), 2uA otherwise */
-	mcq_on = snd_soc_read(codec, COD3026X_53_MQS);
-	ctrl_hps = snd_soc_read(codec, COD3026X_DB_CTRL_HPS);
-	ctrl_hps &= ~CTMI_HP_A_MASK;
-
-	if ((mcq_on & MQS_MODE_MASK) == MQS_MODE_MASK)
-		ctrl_hps |= (CTMI_HP_4_UA << CTMI_HP_A_SHIFT);
-	else
-		ctrl_hps |= (CTMI_HP_2_UA << CTMI_HP_A_SHIFT);
-
-	snd_soc_write(codec, COD3026X_DB_CTRL_HPS, ctrl_hps);
-	cod3026x_usleep(100);
 
 	/* Enable DNC Start gain*/
 	snd_soc_update_bits(codec, COD3026X_54_DNC1,
@@ -1248,6 +1233,7 @@ static int spkdrv_ev(struct snd_soc_dapm_widget *w,
 	int chop_val;
 	unsigned int spk_gain;
 	int offset;
+	unsigned int mix_val;
 	struct cod3026x_priv *cod3026x = snd_soc_codec_get_drvdata(w->codec);
 
 	chop_val = snd_soc_read(w->codec, COD3026X_76_CHOP_DA);
@@ -1270,22 +1256,29 @@ static int spkdrv_ev(struct snd_soc_dapm_widget *w,
 		/* CP Freq setting scenario rev 0.1*/
 		snd_soc_write(w->codec, COD3026X_DD_CTRL_SPKS1, 0x82);
 
+		mix_val = snd_soc_read(w->codec, COD3026X_37_MIX_DA2);
+		mix_val &= EN_SPK_MIX_DCTL_MASK | EN_SPK_MIX_DCTR_MASK |
+			EN_SPK_MIX_MIXL_MASK | EN_SPK_MIX_MIXR_MASK;
+
+		/* Keep DAC path enabled by default */
+		mix_val |= EN_SPK_MIX_DCTL_MASK | EN_SPK_MIX_DCTR_MASK;
+
 		snd_soc_update_bits(w->codec, COD3026X_37_MIX_DA2,
 				EN_SPK_MIX_DCTL_MASK | EN_SPK_MIX_DCTR_MASK, 0);
 
 		spk_gain = snd_soc_read(w->codec, COD3026X_32_VOL_EP_SPK);
 
 		snd_soc_update_bits(w->codec, COD3026X_32_VOL_EP_SPK,
-				CTVOL_SPK_PGA_MASK,
-				0x6 << CTVOL_SPK_PGA_SHIFT);
+				CTVOL_SPK_PGA_MASK, 0);
 
 		snd_soc_update_bits(w->codec, COD3026X_17_PWAUTO_DA,
 				PW_AUTO_DA_MASK | APW_SPK_MASK,
 				PW_AUTO_DA_MASK | APW_SPK_MASK);
 
 		snd_soc_update_bits(w->codec, COD3026X_37_MIX_DA2,
-				EN_SPK_MIX_DCTL_MASK | EN_SPK_MIX_DCTR_MASK,
-				EN_SPK_MIX_DCTL_MASK | EN_SPK_MIX_DCTR_MASK);
+				EN_SPK_MIX_DCTL_MASK | EN_SPK_MIX_DCTR_MASK |
+				EN_SPK_MIX_MIXL_MASK | EN_SPK_MIX_MIXR_MASK,
+				mix_val);
 
 		msleep(135);
 
@@ -1343,7 +1336,6 @@ static int hpdrv_ev(struct snd_soc_dapm_widget *w,
 {
 	int hp_on, spk_on, ep_on;
 	int chop_val;
-	unsigned char ctrl_hps;
 	struct cod3026x_priv *cod3026x = snd_soc_codec_get_drvdata(w->codec);
 
 	chop_val = snd_soc_read(w->codec, COD3026X_76_CHOP_DA);
@@ -1420,6 +1412,10 @@ static int hpdrv_ev(struct snd_soc_dapm_widget *w,
 		snd_soc_update_bits(w->codec, COD3026X_54_DNC1,
 				EN_DNC_MASK , 0);
 
+		/* SKIP HP VOL ON */
+		snd_soc_update_bits(w->codec, COD3026X_19_SV_HP,
+				SKIP_HP_SV_MASK, SKIP_HP_SV_MASK);
+
 		if(spk_on || ep_on) {
 			snd_soc_update_bits(w->codec, COD3026X_17_PWAUTO_DA,
 					APW_HP_MASK, 0);
@@ -1427,17 +1423,12 @@ static int hpdrv_ev(struct snd_soc_dapm_widget *w,
 		snd_soc_update_bits(w->codec, COD3026X_17_PWAUTO_DA,
 				PW_AUTO_DA_MASK | APW_HP_MASK, 0);
 		}
-		msleep(40);
-
 		snd_soc_update_bits(w->codec, COD3026X_36_MIX_DA1,
 				EN_HP_MIXL_DCTL_MASK | EN_HP_MIXR_DCTR_MASK, 0);
-		cod3026x_usleep(100);
-
-		/* set to default HP current value */
-		ctrl_hps = snd_soc_read(w->codec, COD3026X_DB_CTRL_HPS);
-		ctrl_hps &= ~CTMI_HP_A_MASK;
-		ctrl_hps |= (CTMI_HP_2_UA << CTMI_HP_A_SHIFT);
-		snd_soc_write(w->codec, COD3026X_DB_CTRL_HPS, ctrl_hps);
+		msleep(40);
+		/* SKIP HP VOL OFF */
+		snd_soc_update_bits(w->codec, COD3026X_19_SV_HP,
+				SKIP_HP_SV_MASK, 0x0);
 
 		/* diable soft mute */
 		snd_soc_update_bits(w->codec, COD3026X_50_DAC1,
@@ -1456,6 +1447,7 @@ static int epdrv_ev(struct snd_soc_dapm_widget *w,
 {
 	int hp_on, spk_on, ep_on;
 	int chop_val;
+	unsigned int mix_val;
 
 	chop_val = snd_soc_read(w->codec, COD3026X_76_CHOP_DA);
 	hp_on = chop_val & EN_HP_CHOP_MASK;
@@ -1477,12 +1469,21 @@ static int epdrv_ev(struct snd_soc_dapm_widget *w,
 		snd_soc_update_bits(w->codec, COD3026X_50_DAC1,
 			DAC1_SOFT_MUTE_MASK, DAC1_SOFT_MUTE_MASK);
 
+		mix_val = snd_soc_read(w->codec, COD3026X_37_MIX_DA2);
+
+		mix_val &= EN_EP_MIX_DCTL_MASK | EN_EP_MIX_DCTR_MASK |
+			EN_EP_MIX_MIXL_MASK | EN_EP_MIX_MIXR_MASK;
+		/* Keep DAC path enabled by default */
+		mix_val |= EN_EP_MIX_DCTL_MASK | EN_EP_MIX_DCTR_MASK;
+
 		snd_soc_update_bits(w->codec, COD3026X_17_PWAUTO_DA,
 				APW_EP_MASK | PW_AUTO_DA_MASK,
 				APW_EP_MASK | PW_AUTO_DA_MASK);
 
 		snd_soc_update_bits(w->codec, COD3026X_37_MIX_DA2,
-				EN_EP_MIX_DCTL_MASK, EN_EP_MIX_DCTL_MASK);
+				EN_EP_MIX_DCTL_MASK | EN_EP_MIX_DCTR_MASK |
+				EN_EP_MIX_MIXL_MASK | EN_EP_MIX_MIXR_MASK,
+				mix_val);
 
 		msleep(136);
 
@@ -1503,7 +1504,6 @@ static int epdrv_ev(struct snd_soc_dapm_widget *w,
 			snd_soc_update_bits(w->codec, COD3026X_17_PWAUTO_DA,
 					PW_AUTO_DA_MASK | APW_EP_MASK, 0x0);
 		}
-
 		cod3026x_usleep(100);
 
 		snd_soc_update_bits(w->codec, COD3026X_37_MIX_DA2,
@@ -1665,6 +1665,50 @@ static const struct snd_kcontrol_new adcr_mix[] = {
 			EN_MIX_LNRR_SHIFT, 1, 0),
 };
 
+static const struct snd_kcontrol_new hpl_mix[] = {
+	SOC_DAPM_SINGLE("DACL Switch", COD3026X_36_MIX_DA1,
+			EN_HP_MIXL_DCTL_SHIFT, 1, 0),
+	SOC_DAPM_SINGLE("DACR Switch", COD3026X_36_MIX_DA1,
+			EN_HP_MIXL_DCTR_SHIFT, 1, 0),
+	SOC_DAPM_SINGLE("ADCL Switch", COD3026X_36_MIX_DA1,
+			EN_HP_MIXL_MIXL_SHIFT, 1, 0),
+	SOC_DAPM_SINGLE("ADCR Switch", COD3026X_36_MIX_DA1,
+			EN_HP_MIXL_MIXR_SHIFT, 1, 0),
+};
+
+static const struct snd_kcontrol_new hpr_mix[] = {
+	SOC_DAPM_SINGLE("DACL Switch", COD3026X_36_MIX_DA1,
+			EN_HP_MIXR_DCTL_SHIFT, 1, 0),
+	SOC_DAPM_SINGLE("DACR Switch", COD3026X_36_MIX_DA1,
+			EN_HP_MIXR_DCTR_SHIFT, 1, 0),
+	SOC_DAPM_SINGLE("ADCL Switch", COD3026X_36_MIX_DA1,
+			EN_HP_MIXR_MIXL_SHIFT, 1, 0),
+	SOC_DAPM_SINGLE("ADCR Switch", COD3026X_36_MIX_DA1,
+			EN_HP_MIXR_MIXR_SHIFT, 1, 0),
+};
+
+static const struct snd_kcontrol_new ep_mix[] = {
+	SOC_DAPM_SINGLE("DACL Switch", COD3026X_37_MIX_DA2,
+			EN_EP_MIX_DCTL_SHIFT, 1, 0),
+	SOC_DAPM_SINGLE("DACR Switch", COD3026X_37_MIX_DA2,
+			EN_EP_MIX_DCTR_SHIFT, 1, 0),
+	SOC_DAPM_SINGLE("ADCL Switch", COD3026X_37_MIX_DA2,
+			EN_EP_MIX_MIXL_SHIFT, 1, 0),
+	SOC_DAPM_SINGLE("ADCR Switch", COD3026X_37_MIX_DA2,
+			EN_EP_MIX_MIXR_SHIFT, 1, 0),
+};
+
+static const struct snd_kcontrol_new spk_mix[] = {
+	SOC_DAPM_SINGLE("DACL Switch", COD3026X_37_MIX_DA2,
+			EN_SPK_MIX_DCTL_SHIFT, 1, 0),
+	SOC_DAPM_SINGLE("DACR Switch", COD3026X_37_MIX_DA2,
+			EN_SPK_MIX_DCTR_SHIFT, 1, 0),
+	SOC_DAPM_SINGLE("ADCL Switch", COD3026X_37_MIX_DA2,
+			EN_SPK_MIX_MIXL_SHIFT, 1, 0),
+	SOC_DAPM_SINGLE("ADCR Switch", COD3026X_37_MIX_DA2,
+			EN_SPK_MIX_MIXR_SHIFT, 1, 0),
+};
+
 static const struct snd_kcontrol_new spk_on[] = {
 	SOC_DAPM_SINGLE("SPK On", COD3026X_76_CHOP_DA,
 				EN_SPK_PGA_CHOP_SHIFT, 1, 0),
@@ -1750,6 +1794,14 @@ static const struct snd_soc_dapm_widget cod3026x_dapm_widgets[] = {
 			ARRAY_SIZE(adcl_mix)),
 	SND_SOC_DAPM_MIXER("ADCR Mixer", SND_SOC_NOPM, 0, 0, adcr_mix,
 			ARRAY_SIZE(adcr_mix)),
+	SND_SOC_DAPM_MIXER("HPL Mixer", SND_SOC_NOPM, 0, 0, hpl_mix,
+			ARRAY_SIZE(hpl_mix)),
+	SND_SOC_DAPM_MIXER("HPR Mixer", SND_SOC_NOPM, 0, 0, hpr_mix,
+			ARRAY_SIZE(hpr_mix)),
+	SND_SOC_DAPM_MIXER("EP Mixer", SND_SOC_NOPM, 0, 0, ep_mix,
+			ARRAY_SIZE(ep_mix)),
+	SND_SOC_DAPM_MIXER("SPK Mixer", SND_SOC_NOPM, 0, 0, spk_mix,
+			ARRAY_SIZE(spk_mix)),
 
 	SND_SOC_DAPM_DAC_E("DAC", "AIF Playback", SND_SOC_NOPM, 0, 0,
 			dac_ev, SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_PRE_PMD),
@@ -1778,14 +1830,38 @@ static const struct snd_soc_dapm_widget cod3026x_dapm_widgets[] = {
 
 static const struct snd_soc_dapm_route cod3026x_dapm_routes[] = {
 	/* Sink, Control, Source */
+	{"SPK Mixer", "ADCL Switch", "ADCL Mixer"},
+	{"SPK Mixer", "ADCR Switch", "ADCR Mixer"},
+	{"SPK Mixer", "DACL Switch", "DAC"},
+	{"SPK Mixer", "DACR Switch", "DAC"},
+
+	{"SPKDRV", NULL, "SPK Mixer"},
 	{"SPKDRV", NULL, "DAC"},
 	{"SPK" , "SPK On", "SPKDRV"},
 	{"SPKOUTLN", NULL, "SPK"},
 
+	{"EP Mixer", "ADCL Switch", "ADCL Mixer"},
+	{"EP Mixer", "ADCR Switch", "ADCR Mixer"},
+	{"EP Mixer", "DACL Switch", "DAC"},
+	{"EP Mixer", "DACR Switch", "DAC"},
+
+	{"EPDRV", NULL, "EP Mixer"},
 	{"EPDRV", NULL, "DAC"},
 	{"EP", "EP On", "EPDRV"},
 	{"EPOUTN", NULL, "EP"},
 
+	{"HPL Mixer", "ADCL Switch", "ADCL Mixer"},
+	{"HPL Mixer", "ADCR Switch", "ADCR Mixer"},
+	{"HPL Mixer", "DACL Switch", "DAC"},
+	{"HPL Mixer", "DACR Switch", "DAC"},
+
+	{"HPR Mixer", "ADCL Switch", "ADCL Mixer"},
+	{"HPR Mixer", "ADCR Switch", "ADCR Mixer"},
+	{"HPR Mixer", "DACL Switch", "DAC"},
+	{"HPR Mixer", "DACR Switch", "DAC"},
+
+	{"HPDRV", NULL, "HPL Mixer"},
+	{"HPDRV", NULL, "HPR Mixer"},
 	{"HPDRV", NULL, "DAC"},
 	{"HP", "HP On", "HPDRV"},
 	{"HPOUTLN", NULL, "HP"},
@@ -1958,47 +2034,6 @@ static void cod3026x_dai_shutdown(struct snd_pcm_substream *substream,
 			substream->stream ? "C" : "P", __func__);
 }
 
-static void cod3026x_sys_reset(struct snd_soc_codec *codec)
-{
-	unsigned char otp_addr[COD3026X_RESTORE_OTP_COUNT] = {
-					0xd4, 0xd5, 0xd6, 0xdb, 0xdc
-					};
-
-	unsigned char reg_addr[COD3026X_RESTORE_REG_COUNT]= {
-					0x20, 0x22, 0x30, 0x31, 0x32,
-					0x36, 0X37, 0x42, 0x44, 0X71,
-					0x75, 0x5a, 0x54, 0x40, 0x16,
-					0x17};
-
-	unsigned char otp_val[COD3026X_RESTORE_OTP_COUNT];
-	unsigned char reg_val[COD3026X_RESTORE_REG_COUNT];
-	unsigned int i;
-
-	dev_dbg(codec->dev, "%s called\n", __func__);
-
-	/* TODO: Check if we can use cod3022x_{restore/save}_otp_registers() */
-	/* OTP register values are read from 0xF* and written to 0xD* */
-	for(i = 0; i < COD3026X_RESTORE_OTP_COUNT; i++)
-		otp_val[i] = snd_soc_read(codec,
-				(otp_addr[i] + COD3026X_OTP_R_OFFSET));
-
-	for(i = 0; i < COD3026X_RESTORE_REG_COUNT; i++)
-		reg_val[i] = snd_soc_read(codec, reg_addr[i]);
-
-	snd_soc_update_bits(codec, COD3026X_40_DIGITAL_POWER,
-						SYS_RSTB_MASK, 0);
-	mdelay(1);
-	snd_soc_update_bits(codec, COD3026X_40_DIGITAL_POWER,
-					SYS_RSTB_MASK, SYS_RSTB_MASK);
-	mdelay(1);
-
-	for(i = 0; i < COD3026X_RESTORE_OTP_COUNT; i++)
-		snd_soc_write(codec, otp_addr[i], otp_val[i]);
-
-	for(i = 0; i < COD3026X_RESTORE_REG_COUNT; i++)
-		snd_soc_write(codec, reg_addr[i], reg_val[i]);
-}
-
 static int cod3026x_dai_hw_params(struct snd_pcm_substream *substream,
 		struct snd_pcm_hw_params *params,
 		struct snd_soc_dai *dai)
@@ -2006,45 +2041,22 @@ static int cod3026x_dai_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_codec *codec = dai->codec;
 	struct cod3026x_priv *cod3026x = snd_soc_codec_get_drvdata(codec);
 	unsigned int cur_aifrate;
-	int dnc;
-	unsigned char ctrl_hps, hp_current_val = CTMI_HP_2_UA;
 	int ret;
-
-	dev_dbg(codec->dev, "%s called\n", __func__);
 
 	/* 192 KHz support */
 	cur_aifrate = params_rate(params);
-	if (cod3026x->aifrate != cur_aifrate) {
-		/* DNC needs to be disabled while switching samplerate */
-		dnc = snd_soc_read(codec, COD3026X_54_DNC1);
-		snd_soc_write(codec, COD3026X_54_DNC1, 0);
 
+	dev_dbg(codec->dev, "%s called cur_aifrate: %d \n", __func__, cur_aifrate);
+
+	if (cod3026x->aifrate != cur_aifrate) {
 		/* Need to reset H/W while switching from 192KHz to 48KHz */
 		if (cur_aifrate == COD3026X_SAMPLE_RATE_192KHZ) {
 			snd_soc_update_bits(codec, COD3026X_53_MQS,
 					MQS_MODE_MASK, MQS_MODE_MASK);
-			hp_current_val = CTMI_HP_4_UA;
 		} else if (cod3026x->aifrate == COD3026X_SAMPLE_RATE_192KHZ) {
 			snd_soc_update_bits(codec, COD3026X_53_MQS,
 					MQS_MODE_MASK, 0);
-			hp_current_val = CTMI_HP_2_UA;
-			cod3026x_sys_reset(codec);
 		}
-
-		/*
-		 * If HP is already on, then change the 'current' setting based
-		 * on samplerate
-		 */
-		if (APW_HP_MASK == (snd_soc_read(codec, COD3026X_17_PWAUTO_DA)
-							& APW_HP_MASK)) {
-			ctrl_hps = snd_soc_read(codec, COD3026X_DB_CTRL_HPS);
-			ctrl_hps &= ~CTMI_HP_A_MASK;
-			ctrl_hps |= hp_current_val << CTMI_HP_A_SHIFT;
-			snd_soc_write(codec, COD3026X_DB_CTRL_HPS, ctrl_hps);
-		}
-
-		/* DNC mode can be restored after the samplerate switch */
-		snd_soc_write(codec, COD3026X_54_DNC1, dnc);
 		cod3026x->aifrate = cur_aifrate;
 	}
 
@@ -2190,8 +2202,6 @@ static void cod3026x_jack_det_work(struct work_struct *work)
 	mutex_unlock(&cod3026x->jackdet_lock);
 }
 
-
-
 #define ADC_TRACE_NUM		5
 #define ADC_TRACE_NUM2		2
 #define ADC_READ_DELAY_US	500
@@ -2324,7 +2334,6 @@ static void cod3026x_buttons_work(struct work_struct *work)
 }
 
 #define MIC_DETECT_DELAY 150
-
 static irqreturn_t cod3026x_threaded_isr(int irq, void *data)
 {
 	struct cod3026x_priv *cod3026x = data;
@@ -2372,7 +2381,6 @@ static irqreturn_t cod3026x_threaded_isr(int irq, void *data)
 			queue_delayed_work(cod3026x->jack_det_wq,
 					&cod3026x->jack_det_work, msecs_to_jiffies(MIC_DETECT_DELAY));
 		}
-
 		mutex_unlock(&cod3026x->key_lock);
 		goto out;
 	}
@@ -2732,11 +2740,20 @@ static void cod3026x_post_fw_update_failure(void *context)
 	/* CP Freq setting scenario rev 0.1*/
 	snd_soc_write(codec, COD3026X_DD_CTRL_SPKS1, 0x82);
 
+	/* mic3 tdma trim register default set rev 0.4*/
+	snd_soc_write(codec, COD3026X_75_AD_MIC3N_TRIM1, 0x13);
+	snd_soc_write(codec, COD3026X_78_AD_MIC3N_TRIM2, 0x01);
+
 	/* Reset input/output selector bits */
 	cod3026x_reset_io_selector_bits(codec);
 
 	/* Configure mic bias voltage */
 	cod3026x_configure_mic_bias(codec);
+
+	/* Frequence selection of ADC analog chopping clk */
+	snd_soc_update_bits(codec, COD3026X_70_CLK1_AD,
+			SEL_CHCLK_AD_MASK,
+			CHOPPING_CLK_1_BY_4 << SEL_CHCLK_AD_SHIFT);
 
 	/* All boot time hardware access is done. Put the device to sleep. */
 #ifdef CONFIG_PM_RUNTIME

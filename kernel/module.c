@@ -126,6 +126,7 @@ typedef enum {
 //#include <../drivers/gud/gud-exynos7420/MobiCoreKernelApi/public/mobicore_driver_cmd.h>
 
 #include <linux/fs.h>
+#include <linux/delay.h>
 #include <asm/uaccess.h>
 
 #define TL_TIMA_LKMAUTH_UUID {{ 0xff, 0xff, 0xff, 0xff, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xb }}
@@ -2849,7 +2850,13 @@ static int lkmauth(Elf_Ehdr * hdr, int len)
 			goto lkmauth_ret;
 		}
 
+retry1:
 		mc_ret = mc_wait_notification(&mchandle, -1);
+		if (MC_DRV_ERR_INTERRUPTED_BY_SIGNAL == mc_ret) {
+			usleep_range(1000, 5000);
+			goto retry1;
+		}
+
 		if (mc_ret != MC_DRV_OK) {
 			pr_err("TIMA: lkmauth--wait_notify failed.\n");
 			ret = RET_LKMAUTH_FAIL;
@@ -2932,7 +2939,13 @@ static int lkmauth(Elf_Ehdr * hdr, int len)
 			goto lkmauth_ret;
 		}
 
+retry2:
 		mc_ret = mc_wait_notification(&mchandle, -1);
+		if (MC_DRV_ERR_INTERRUPTED_BY_SIGNAL == mc_ret) {
+			usleep_range(1000, 5000);
+			goto retry2;
+		}
+
 		if (mc_ret != MC_DRV_OK) {
 			pr_err("TIMA: lkmauth--wait_notify failed.\n");
 			ret = RET_LKMAUTH_FAIL;

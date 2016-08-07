@@ -806,6 +806,7 @@ static int attach_jig_uart_boot_off(struct s2mu005_muic_data *muic_data)
 	return ret;
 }
 
+#if 0
 static int attach_jig_uart_boot_on(struct s2mu005_muic_data *muic_data)
 {
 	int ret = 0;
@@ -818,6 +819,7 @@ static int attach_jig_uart_boot_on(struct s2mu005_muic_data *muic_data)
 
 	return ret;
 }
+#endif
 
 static int attach_jig_usb_boot_on_off(struct s2mu005_muic_data *muic_data)
 {
@@ -897,14 +899,9 @@ static void s2mu005_muic_handle_attach(struct s2mu005_muic_data *muic_data,
 		ret = attach_jig_uart_boot_off(muic_data);
 		break;
 	case ATTACHED_DEV_JIG_UART_ON_MUIC:
-		/* Workaround for EVT0, EVT1: 619k works same with 512k */
-		if (muic_data->muic_version < 2) {
-			pr_info("%s:%s: 619K -> 523K switch W/A\n", MUIC_DEV_NAME, __func__);
-			ret = attach_jig_uart_boot_off(muic_data);
-			break;
-		}
-
-		ret = attach_jig_uart_boot_on(muic_data);
+		/* Workaround for EVT0, EVT1: 619k works same with 523k */
+		pr_info("%s:%s: 619K -> 523K switch W/A\n", MUIC_DEV_NAME, __func__);
+		ret = attach_jig_uart_boot_off(muic_data);
 		break;
 	case ATTACHED_DEV_JIG_USB_OFF_MUIC:
 	case ATTACHED_DEV_JIG_USB_ON_MUIC:

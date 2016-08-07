@@ -1121,15 +1121,13 @@ int exynos7870_fimc_is_print_clk(struct device *dev)
 }
 
 #elif defined(CONFIG_SOC_EXYNOS7880)
+/* for debug */
+void __iomem *cmu_ccore;
+void __iomem *cmu_isp;
+
 int exynos7880_fimc_is_print_clk(struct device *dev);
 static void exynos7880_fimc_is_print_clk_reg(void)
 {
-	void __iomem *cmu_ccore;
-	void __iomem *cmu_isp;
-
-	cmu_ccore = ioremap(0x10680000, SZ_4K);
-	cmu_isp = ioremap(0x144D0000, SZ_4K);
-
 	printk(KERN_DEBUG "[@] CCORE\n");
 	PRINT_CLK((cmu_ccore + 0x0120), "MEDIA_PLL_CON0");
 	PRINT_CLK((cmu_ccore + 0x0124), "MEDIA_PLL_CON1");
@@ -1191,9 +1189,6 @@ static void exynos7880_fimc_is_print_clk_reg(void)
 	PRINT_CLK((cmu_isp +  0x083C), "CLK_ENABLE_CLKPHY_ISP_S_RXBYTECLKHS1_S4S");
 	PRINT_CLK((cmu_isp +  0x0840), "CLK_ENABLE_CLKPHY_ISP_S_RXBYTECLKHS2_S4S");
 	PRINT_CLK((cmu_isp +  0x0844), "CLK_ENABLE_CLKPHY_ISP_S_RXBYTECLKHS3_S4S");
-
-	iounmap(cmu_ccore);
-	iounmap(cmu_isp);
 }
 
 int exynos7880_fimc_is_clk_gate(u32 clk_gate_id, bool is_on)
@@ -1211,6 +1206,10 @@ int exynos7880_fimc_is_get_clk(struct device *dev)
 	const char *name;
 	struct clk *clk;
 	u32 index;
+
+	/* for debug */
+	cmu_ccore = ioremap(0x10680000, SZ_4K);
+	cmu_isp = ioremap(0x144D0000, SZ_4K);
 
 	for (index = 0; index < ARRAY_SIZE(fimc_is_clk_list); ++index) {
 		name = fimc_is_clk_list[index].name;

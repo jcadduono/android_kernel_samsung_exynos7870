@@ -44,6 +44,8 @@
 #include <linux/clk.h>
 #include <linux/suspend.h>
 #include <linux/of.h>
+#include <soc/samsung/exynos-pmu.h>
+#include <soc/samsung/pmu-cp.h>
 
 #ifdef CONFIG_SND_SAMSUNG_AUDSS
 #include <sound/exynos.h>
@@ -818,6 +820,19 @@ static void s3c24xx_serial_pm(struct uart_port *port, unsigned int level,
 		if (ourport->domain == DOMAIN_AUD)
 			aud_uart_gpio_cfg(&ourport->pdev->dev, level);
 
+		if (ourport->use_alive_io == 1) {
+			unsigned int uart_ctrl;
+			exynos_pmu_read(EXYNOS_PMU_UART_IO_SHARE_CTRL, &uart_ctrl);
+			if (!(uart_ctrl & SEL_CP_UART_DBG)) {
+				struct pinctrl *uart_sleep_pinctrl;
+				uart_sleep_pinctrl =
+					devm_pinctrl_get_select(port->dev, "uart_sleep");
+				if (IS_ERR(uart_sleep_pinctrl))
+					dev_err(port->dev,
+						"failed to set uart pin for sleep\n");
+			}
+		}
+
 		uart_clock_disable(ourport);
 		break;
 
@@ -826,6 +841,15 @@ static void s3c24xx_serial_pm(struct uart_port *port, unsigned int level,
 
 		if (ourport->domain == DOMAIN_AUD)
 			aud_uart_gpio_cfg(&ourport->pdev->dev, level);
+
+		if (ourport->use_alive_io == 1) {
+			struct pinctrl *uart_default_pinctrl;
+			uart_default_pinctrl =
+				devm_pinctrl_get_select(port->dev, "default");
+			if (IS_ERR(uart_default_pinctrl))
+					dev_err(port->dev,
+						"failed to set uart pin for default\n");
+		}
 
 		s3c24xx_serial_resetport(port, s3c24xx_port_to_cfg(port));
 		break;
@@ -1668,6 +1692,11 @@ static int s3c24xx_serial_probe(struct platform_device *pdev)
 		ourport->use_default_irq =1;
 	else
 		ourport->use_default_irq =0;
+
+	if (of_find_property(pdev->dev.of_node, "samsung,alive-io", NULL))
+		ourport->use_alive_io = 1;
+	else
+		ourport->use_alive_io = 0;
 
 	ret = s3c24xx_serial_init_port(ourport, pdev);
 	if (ret < 0)

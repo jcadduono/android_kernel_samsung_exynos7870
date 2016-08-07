@@ -321,6 +321,8 @@ int exynos7870_fimc_is_sensor_iclk_on(struct device *dev,
 	u32 channel)
 {
 	int ret = 0;
+	fimc_is_enable(dev, "gate_isp_cam");
+	fimc_is_enable(dev, "pxmxdx_isp_cam");
 
 	switch (channel) {
 	case 0:
@@ -348,6 +350,8 @@ int exynos7870_fimc_is_sensor_iclk_off(struct device *dev,
 {
 	int ret = 0;
 
+	fimc_is_disable(dev, "gate_isp_cam");
+	fimc_is_disable(dev, "pxmxdx_isp_cam");
 	/* CSI */
 	exynos7870_fimc_is_csi_gate(dev, channel, true);
 

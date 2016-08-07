@@ -1256,6 +1256,33 @@ int set_alg_reset_flag(struct fimc_is_sensor_interface *itf,
 	return ret;
 }
 
+/*
+ * TODO: need to implement getting C2, C3 stat data
+ * This sensor interface returns done status of getting sensor stat
+ */
+int get_sensor_hdr_stat(struct fimc_is_sensor_interface *itf,
+		enum itf_cis_hdr_stat_status *status)
+{
+	int ret = 0;
+
+	info("%s", __func__);
+
+	return ret;
+}
+
+/*
+ * TODO: For example, 3AA thumbnail result shuld be applied to sensor in case of IMX230
+ */
+int set_3a_alg_res_to_sens(struct fimc_is_sensor_interface *itf,
+		struct fimc_is_3a_res_to_sensor *sensor_setting)
+{
+	int ret = 0;
+
+	info("%s", __func__);
+
+	return ret;
+}
+
 int get_sensor_fnum(struct fimc_is_sensor_interface *itf,
 			u32 *fnum)
 {
@@ -1717,6 +1744,18 @@ int set_sensor_3a_mode(struct fimc_is_sensor_interface *itf,
 	return 0;
 }
 
+/* In order to change a current CIS mode when an user select the WDR (long and short exposure) mode or the normal AE mo */
+int change_cis_mode(struct fimc_is_sensor_interface *itf,
+		enum itf_cis_interface cis_mode)
+{
+	int ret = 0;
+
+	info("cis mode : %d -> %d", itf->cis_mode, cis_mode);
+	itf->cis_mode = cis_mode;
+
+	return ret;
+}
+
 int start_of_frame(struct fimc_is_sensor_interface *itf)
 {
 	int ret = 0;
@@ -2102,6 +2141,8 @@ int init_sensor_interface(struct fimc_is_sensor_interface *itf)
 	itf->cis_itf_ops.get_sensor_use_dgain = get_sensor_use_dgain;
 	itf->cis_itf_ops.get_sensor_fnum = get_sensor_fnum;
 	itf->cis_itf_ops.set_alg_reset_flag = set_alg_reset_flag;
+	itf->cis_ext_itf_ops.get_sensor_hdr_stat = get_sensor_hdr_stat;
+	itf->cis_ext_itf_ops.set_3a_alg_res_to_sens = set_3a_alg_res_to_sens;
 
 	itf->cis_itf_ops.set_initial_exposure_of_setfile = set_initial_exposure_of_setfile;
 	itf->cis_itf_ops.set_video_mode_of_setfile = set_video_mode_of_setfile;
@@ -2123,6 +2164,7 @@ int init_sensor_interface(struct fimc_is_sensor_interface *itf)
 	itf->cis_itf_ops.get_module_id = get_module_id;
 	itf->cis_itf_ops.get_module_position = get_module_position;
 	itf->cis_itf_ops.set_sensor_3a_mode = set_sensor_3a_mode;
+	itf->cis_ext_itf_ops.change_cis_mode = change_cis_mode;
 
 	/* struct fimc_is_cis_event_ops */
 	itf->cis_evt_ops.start_of_frame = start_of_frame;

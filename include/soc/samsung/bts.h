@@ -81,6 +81,7 @@ int exynos7_bts_unregister_notifier(struct notifier_block *nb);
 int exynos_update_bts_param(int target_idx, int work);
 int exynos_bts_register_notifier(struct notifier_block *nb);
 int exynos_bts_unregister_notifier(struct notifier_block *nb);
+int exynos_update_overlay_wincnt(int cnt);
 #else
 #define exynos7_update_media_scenario(a, b, c) do {} while (0)
 #define exynos7_update_bts_param(a, b) do {} while (0)

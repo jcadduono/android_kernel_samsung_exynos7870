@@ -22,7 +22,10 @@ config SEC_BAT_AUT
 	default n
 	help
 	  Samsung TN Bat Automation Test
-	  
+
+config SAMSUNG_PRODUCT_SHIP
+	bool "set up for product shipping"
+	default n	  
 endmenu
 
 endif

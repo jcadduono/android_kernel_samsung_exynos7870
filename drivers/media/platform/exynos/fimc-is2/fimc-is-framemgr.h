@@ -169,7 +169,6 @@ struct fimc_is_frame {
 	struct fimc_is_frame_info frame_info[MAX_FRAME_INFO];
 	u32			instance; /* device instance */
 	u32			type;
-	unsigned long		ndone_flag;
 	unsigned long		core_flag;
 	atomic_t		shot_done_flag;
 #endif

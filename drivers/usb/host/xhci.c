@@ -662,8 +662,9 @@ static void xhci_only_stop_hcd(struct usb_hcd *hcd)
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
 
 	spin_lock_irq(&xhci->lock);
+#if 0
 	xhci_halt(xhci);
-
+#endif
 	/* The shared_hcd is going to be deallocated shortly (the USB core only
 	 * calls this function when allocation fails in usb_add_hcd(), or
 	 * usb_remove_hcd() is called).  So we need to unset xHCI's pointer.

@@ -801,6 +801,7 @@ EXPORT_SYMBOL(fts_fw_updater);
 #define FW_IMAGE_NAME_HERO2ALPS			"tsp_stm/hero2a.fw"
 #define FW_IMAGE_NAME_MATISSE			"tsp_stm/matisse.fw"
 #define FW_IMAGE_NAME_GTAXL			"tsp_stm/stm_gtaxl.fw"
+#define FW_IMAGE_NAME_GTAXL_REV03			"tsp_stm/fts1a096_gtaxl_rev03.fw"
 
 #define CONFIG_ID_D1_S				0x2C
 #define CONFIG_ID_D2_TR				0x2E
@@ -888,17 +889,23 @@ int fts_fw_update_on_probe(struct fts_ts_info *info)
 			tsp_debug_err(true, info->dev,"%s:firmware name exgist in dts\n", __func__);
 			info->firmware_name = info->board->firmware_name;
 		}
+	}else if((strncmp(info->board->project_name, "gtaxl_rev03", 11) == 0)){
+		tsp_debug_err(true, info->dev,"%s:FTS1A096 - GTAXL rev03\n", __func__);
+		info->firmware_name = FW_IMAGE_NAME_GTAXL_REV03;
+		if (info->board->firmware_name){
+			tsp_debug_err(true, info->dev,"%s:firmware name exgist in dts\n", __func__);
+			info->firmware_name = info->board->firmware_name;
+		}
 	}else if((strncmp(info->board->project_name, "gtaxl", 5) == 0)){
-		tsp_debug_err(true, info->dev,"%s:FTS7AD56 - GTAXL\n", __func__);
+		tsp_debug_err(true, info->dev,"%s:FTS1A096 - GTAXL\n", __func__);
 		info->firmware_name = FW_IMAGE_NAME_GTAXL;
 		if (info->board->firmware_name){
 			tsp_debug_err(true, info->dev,"%s:firmware name exgist in dts\n", __func__);
 			info->firmware_name = info->board->firmware_name;
 		}
 	}else {
-		tsp_debug_err(true, info->dev,"%s:FTS4 - ZERO\n", __func__);
+		tsp_debug_err(true, info->dev,"%s: unknown device\n", __func__);
 		goto exit_fwload;
-		info->firmware_name = FW_IMAGE_NAME_D2_Z2A;
 	}
 	snprintf(fw_path, FTS_MAX_FW_PATH, "%s", info->firmware_name);
 	tsp_debug_info(true, info->dev, "%s: Load firmware : %s, Digital_rev : %d, TSP_ID2 : %d\n", __func__,

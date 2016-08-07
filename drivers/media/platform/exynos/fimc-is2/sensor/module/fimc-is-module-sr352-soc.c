@@ -94,6 +94,8 @@ static const struct sensor_regset_table sr352_regset_table = {
 	.resol_176_144		= SENSOR_REGISTER_REGSET(sr352_resol_176_144),
 	.resol_320_240		= SENSOR_REGISTER_REGSET(sr352_resol_320_240),
 	.resol_704_576		= SENSOR_REGISTER_REGSET(sr352_resol_704_576),
+	.resol_720_720		= SENSOR_REGISTER_REGSET(sr352_resol_720_720),
+	.resol_720_480		= SENSOR_REGISTER_REGSET(sr352_resol_720_480),
 	.resol_800_600		= SENSOR_REGISTER_REGSET(sr352_resol_800_600),
 	.resol_1280_960		= SENSOR_REGISTER_REGSET(sr352_resol_1280_960),
 	.resol_1600_1200	= SENSOR_REGISTER_REGSET(sr352_resol_1600_1200),
@@ -103,11 +105,20 @@ static const struct sensor_regset_table sr352_regset_table = {
 	.resol_1024_576		= SENSOR_REGISTER_REGSET(sr352_resol_1024_576),
 	.resol_1024_768		= SENSOR_REGISTER_REGSET(sr352_resol_1024_768),
 	.resol_1280_720 	= SENSOR_REGISTER_REGSET(sr352_resol_1280_720),
+	.resol_176_144_capture		= SENSOR_REGISTER_REGSET(sr352_resol_176_144_capture),
+	.resol_320_240_capture		= SENSOR_REGISTER_REGSET(sr352_resol_320_240_capture),
 	.resol_640_480_capture		= SENSOR_REGISTER_REGSET(sr352_resol_640_480_capture),
+	.resol_720_480_capture		= SENSOR_REGISTER_REGSET(sr352_resol_720_480_capture),
 	.resol_1280_720_capture		= SENSOR_REGISTER_REGSET(sr352_resol_1280_720_capture),
+	.resol_1536_1536_capture		= SENSOR_REGISTER_REGSET(sr352_resol_1536_1536_capture),
 	.resol_1600_1200_capture		= SENSOR_REGISTER_REGSET(sr352_resol_1600_1200_capture),
 	.resol_2048_1152_capture		= SENSOR_REGISTER_REGSET(sr352_resol_2048_1152_capture),
 	.resol_2048_1536_capture		= SENSOR_REGISTER_REGSET(sr352_resol_2048_1536_capture),
+	.resol_1280_720_video		= SENSOR_REGISTER_REGSET(sr352_resol_1280_720_video),
+	.resol_720_480_video		= SENSOR_REGISTER_REGSET(sr352_resol_720_480_video),
+	.resol_640_480_video		= SENSOR_REGISTER_REGSET(sr352_resol_640_480_video),
+	.resol_320_240_video		= SENSOR_REGISTER_REGSET(sr352_resol_320_240_video),
+	.resol_176_144_video		= SENSOR_REGISTER_REGSET(sr352_resol_176_144_video),
 
 	.hflip			= SENSOR_REGISTER_REGSET(sr352_hflip),
 	.vflip			= SENSOR_REGISTER_REGSET(sr352_vflip),
@@ -140,14 +151,15 @@ static struct fimc_is_sensor_cfg settle_sr352[] = {
 	FIMC_IS_SENSOR_CFG_SOC(2048, 1536, 30, 9, 0),
 	FIMC_IS_SENSOR_CFG_SOC(2048, 1152, 30, 9, 1),
 	FIMC_IS_SENSOR_CFG_SOC(1600, 1200, 30, 9, 2),
-	FIMC_IS_SENSOR_CFG_SOC(1280, 960, 15, 9, 3),
+	FIMC_IS_SENSOR_CFG_SOC(1536, 1536, 30, 9, 3),
 	FIMC_IS_SENSOR_CFG_SOC(1280, 720, 30, 7, 4),
 	FIMC_IS_SENSOR_CFG_SOC(1024, 768, 30, 9, 5),
 	FIMC_IS_SENSOR_CFG_SOC(1024, 576, 30, 9, 6),
-	FIMC_IS_SENSOR_CFG_SOC(640, 480, 30, 9, 7),
-	FIMC_IS_SENSOR_CFG_SOC(640, 480, 25, 9, 8),
-	FIMC_IS_SENSOR_CFG_SOC(352, 288, 30, 9, 9),
-	FIMC_IS_SENSOR_CFG_SOC(352, 288, 25, 9, 10),
+	FIMC_IS_SENSOR_CFG_SOC(720, 720, 30, 9, 7),
+	FIMC_IS_SENSOR_CFG_SOC(720, 480, 30, 9, 8),
+	FIMC_IS_SENSOR_CFG_SOC(640, 480, 30, 9, 9),
+	FIMC_IS_SENSOR_CFG_SOC(320, 240, 30, 9, 10),
+	FIMC_IS_SENSOR_CFG_SOC(176, 144, 30, 9, 11),
 };
 
 static const struct sr352_fps sr352_framerates[] = {
@@ -160,19 +172,20 @@ static const struct sr352_fps sr352_framerates[] = {
 };
 
 static const struct sr352_framesize sr352_preview_frmsizes[] = {
-	{ PREVIEW_SZ_CIF,	352,  288 },
-	{ PREVIEW_SZ_VGA,	640,  480 },
-	{ PREVIEW_SZ_1024x576, 1024, 576 },
-	{ PREVIEW_SZ_XGA,	1024, 768 },
-	{ PREVIEW_SZ_HD,	1280, 720 },
+	{ PREVIEW_SZ_VGA,		640, 480 },
+	{ PREVIEW_SZ_720x720,	720, 720 },
+	{ PREVIEW_SZ_1024x576,	1024, 576 },
+	{ PREVIEW_SZ_XGA,		1024, 768 },
+	{ PREVIEW_SZ_HD,		1280, 720 },
 };
 
 static const struct sr352_framesize sr352_capture_frmsizes[] = {
-	{ CAPTURE_SZ_VGA,	640,  480 },
-	{ CAPTURE_SZ_HD, 1280, 720 },
-	{ CAPTURE_SZ_2MP,	1600, 1200 },
-	{ CAPTURE_SZ_W2MP,	2048, 1152 },
-	{ CAPTURE_SZ_3MP,	2048, 1536 },
+	{ CAPTURE_SZ_VGA,		640, 480 },
+	{ CAPTURE_SZ_HD,		1280, 720 },
+	{ CAPTURE_SZ_1536x1536,	1536, 1536 },
+	{ CAPTURE_SZ_2MP,		1600, 1200 },
+	{ CAPTURE_SZ_W2MP,		2048, 1152 },
+	{ CAPTURE_SZ_3MP,		2048, 1536 },
 };
 
 static struct fimc_is_vci vci_sr352[] = {
@@ -613,19 +626,59 @@ static int sr352_set_preview_size(struct v4l2_subdev *subdev)
 	cam_info("set preview size(%dx%d)\n", width, height);
 
 	if (state->sensor_mode == SENSOR_MOVIE) {
-		if (width == 1024 && height == 576) {
-			err = sensor_sr352_apply_set(subdev, "sr352_resol_1024_576", &sr352_regset_table.resol_1024_576);
-			CHECK_ERR_MSG(err, "fail to set preview size\n");
-		} else { // 640x480
-			err = sensor_sr352_apply_set(subdev, "sr352_resol_640_480", &sr352_regset_table.resol_640_480);
-			CHECK_ERR_MSG(err, "fail to set preview size\n");
+		if (width == 1280 && height == 720) {
+			err = sensor_sr352_apply_set(subdev, "sr352_resol_1280_720_video",
+				&sr352_regset_table.resol_1280_720_video);
+		} else {
+			err = sensor_sr352_apply_set(subdev, "sr352_fps_30_camcorder",
+				&sr352_regset_table.fps_30_camcorder);
+
+			if (width == 1024 && height == 768) {
+				err = sensor_sr352_apply_set(subdev, "sr352_resol_1024_768",
+					&sr352_regset_table.resol_1024_768);
+			} else if (width == 1024 && height == 576) {
+				err = sensor_sr352_apply_set(subdev, "sr352_resol_1024_576",
+					&sr352_regset_table.resol_1024_576);
+			} else if (width == 720 && height == 480) {
+				err = sensor_sr352_apply_set(subdev, "sr352_resol_720_480_video",
+					&sr352_regset_table.resol_720_480_video);
+			} else if (width == 640 && height == 480) {
+				err = sensor_sr352_apply_set(subdev, "sr352_resol_640_480_video",
+					&sr352_regset_table.resol_640_480_video);
+			} else if (width == 320 && height == 240) {
+				err = sensor_sr352_apply_set(subdev, "sr352_resol_320_240_video",
+					&sr352_regset_table.resol_320_240_video);
+			} else {
+				err = sensor_sr352_apply_set(subdev, "sr352_resol_1024_576",
+					&sr352_regset_table.resol_1024_576);
+			}
 		}
 		cam_info("sensor_mode is movie\n");
 	} else {
-		if (width == 1024 && height == 576) {
-			err = sensor_sr352_apply_set(subdev, "sr352_resol_1024_576", &sr352_regset_table.resol_1024_576);
-		} else { // 1024x768
-			err = sensor_sr352_apply_set(subdev, "sr352_resol_1024_768", &sr352_regset_table.resol_1024_768);
+		if (width == 1280 && height == 720) {
+			err = sensor_sr352_apply_set(subdev, "sr352_resol_1280_720",
+				&sr352_regset_table.resol_1280_720);
+		} else if (width == 1024 && height == 768) {
+			err = sensor_sr352_apply_set(subdev, "sr352_resol_1024_768",
+				&sr352_regset_table.resol_1024_768);
+		} else if (width == 1024 && height == 576) {
+			err = sensor_sr352_apply_set(subdev, "sr352_resol_1024_576",
+				&sr352_regset_table.resol_1024_576);
+		} else if (width == 720 && height == 720) {
+			err = sensor_sr352_apply_set(subdev, "sr352_resol_720_720",
+				&sr352_regset_table.resol_720_720);
+		} else if (width == 720 && height == 480) {
+			err = sensor_sr352_apply_set(subdev, "sr352_resol_720_480",
+				&sr352_regset_table.resol_720_480);
+		} else if (width == 640 && height == 480) {
+			err = sensor_sr352_apply_set(subdev, "sr352_resol_640_480",
+				&sr352_regset_table.resol_640_480);
+		} else if (width == 320 && height == 240) {
+			err = sensor_sr352_apply_set(subdev, "sr352_resol_320_240",
+				&sr352_regset_table.resol_320_240);
+		} else { // (width == 176 && height == 144)
+			err = sensor_sr352_apply_set(subdev, "sr352_resol_176_144",
+				&sr352_regset_table.resol_176_144);
 		}
 	}
 	CHECK_ERR_MSG(err, "fail to set preview size\n");
@@ -675,17 +728,20 @@ static int sr352_set_frame_rate(struct v4l2_subdev *subdev, s32 fps)
 
 	switch (fps) {
 	case FRAME_RATE_AUTO :
-		ret = sensor_sr352_apply_set(subdev, "sr352_fps_auto", &sr352_regset_table.fps_auto);
+		ret = sensor_sr352_apply_set(subdev, "sr352_fps_auto",
+			&sr352_regset_table.fps_auto);
 		state->skip_set_vga_size = true;
 		state->preview.update_frmsize = 1;
 		sr352_set_preview_size(subdev);
 		break;
 	case FRAME_RATE_7 :
-		ret = sensor_sr352_apply_set(subdev, "sr352_fps_7", &sr352_regset_table.fps_7);
+		ret = sensor_sr352_apply_set(subdev, "sr352_fps_7",
+			&sr352_regset_table.fps_7);
 		state->skip_set_vga_size = true;
 		break;
 	case FRAME_RATE_15 :
-		ret = sensor_sr352_apply_set(subdev, "sr352_fps_15", &sr352_regset_table.fps_15);
+		ret = sensor_sr352_apply_set(subdev, "sr352_fps_15",
+			&sr352_regset_table.fps_15);
 		state->skip_set_vga_size = true;
 		break;
 	case FRAME_RATE_25:
@@ -694,9 +750,13 @@ static int sr352_set_frame_rate(struct v4l2_subdev *subdev, s32 fps)
 		state->skip_set_vga_size = true;
 		break;
 	case FRAME_RATE_30:
-		ret = sensor_sr352_apply_set(subdev, "sr352_fps_30_camcorder",
-			&sr352_regset_table.fps_30_camcorder);
-		state->skip_set_vga_size = true;
+		if (state->sensor_mode == SENSOR_MOVIE) {
+			cam_dbg("%s: Skip FRAME_RATE_30\n", __func__); // For HD Recording
+		} else {
+			ret = sensor_sr352_apply_set(subdev, "sr352_fps_30_camcorder",
+				&sr352_regset_table.fps_30_camcorder);
+			state->skip_set_vga_size = true;
+		}
 		break;
 	default:
 		cam_dbg("%s: Not supported fps (%d)\n", __func__, fps);
@@ -704,6 +764,9 @@ static int sr352_set_frame_rate(struct v4l2_subdev *subdev, s32 fps)
 	}
 
 	state->fps = fps;
+	if (state->runmode == RUNMODE_RUNNING) {
+		ret = sensor_sr352_stream_on(subdev);
+	}
 	CHECK_ERR_MSG(ret, "fail to set framerate\n");
 
 	return 0;
@@ -719,19 +782,24 @@ static int sr352_set_effect(struct v4l2_subdev *subdev, int effect)
 	switch (effect) {
 	case V4L2_IMAGE_EFFECT_BASE :
 	case V4L2_IMAGE_EFFECT_NONE :
-		ret = sensor_sr352_apply_set(subdev, "sr352_Effect_Normal", &sr352_regset_table.effect_none);
+		ret = sensor_sr352_apply_set(subdev, "sr352_Effect_Normal",
+			&sr352_regset_table.effect_none);
 		break;
 	case V4L2_IMAGE_EFFECT_BNW :
-		ret = sensor_sr352_apply_set(subdev, "sr352_Effect_Gray", &sr352_regset_table.effect_gray);
+		ret = sensor_sr352_apply_set(subdev, "sr352_Effect_Gray",
+			&sr352_regset_table.effect_gray);
 		break;
 	case V4L2_IMAGE_EFFECT_SEPIA :
-		ret = sensor_sr352_apply_set(subdev, "sr352_Effect_Sepia", &sr352_regset_table.effect_sepia);
+		ret = sensor_sr352_apply_set(subdev, "sr352_Effect_Sepia",
+			&sr352_regset_table.effect_sepia);
 		break;
 	case V4L2_IMAGE_EFFECT_NEGATIVE :
-		ret = sensor_sr352_apply_set(subdev, "sr352_Effect_Negative", &sr352_regset_table.effect_negative);
+		ret = sensor_sr352_apply_set(subdev, "sr352_Effect_Negative",
+			&sr352_regset_table.effect_negative);
 		break;
 	case V4L2_IMAGE_EFFECT_AQUA :
-		ret = sensor_sr352_apply_set(subdev, "sr352_Effect_Aqua", &sr352_regset_table.effect_aqua);
+		ret = sensor_sr352_apply_set(subdev, "sr352_Effect_Aqua",
+			&sr352_regset_table.effect_aqua);
 		break;
 	default:
 		cam_dbg("%s: Not support.(%d)\n", __func__, effect);
@@ -1003,7 +1071,8 @@ int sensor_sr352_stream_on(struct v4l2_subdev *subdev)
 
 	cam_info("stream on\n");
 
-	ret = sensor_sr352_apply_set(subdev, "sr352_start_stream", &sr352_regset_table.start_stream);
+	ret = sensor_sr352_apply_set(subdev, "sr352_start_stream",
+		&sr352_regset_table.start_stream);
 
 	return ret;
 }
@@ -1012,9 +1081,16 @@ int sensor_sr352_stream_off(struct v4l2_subdev *subdev)
 {
 	int ret = 0;
 	struct sr352_state *state = to_state(subdev);
+	u32 width, height;
+
+	width = state->preview.frmsize->width;
+	height = state->preview.frmsize->height;
+
+	cam_info("set stream off size(%dx%d)\n", width, height);
 
 	cam_info("stream off\n");
-	ret = sensor_sr352_apply_set(subdev, "sr352_stop_stream", &sr352_regset_table.stop_stream);
+	ret = sensor_sr352_apply_set(subdev, "sr352_stop_stream",
+		&sr352_regset_table.stop_stream);
 	state->preview.update_frmsize = 1;
 	state->skip_set_vga_size = false;
 
@@ -1033,6 +1109,10 @@ int sensor_sr352_stream_off(struct v4l2_subdev *subdev)
 	case RUNMODE_RECORDING:
 		cam_dbg("Recording Stop!\n");
 		state->runmode = RUNMODE_RECORDING_STOP;
+		if (width == 1280 && height == 720) {
+			sensor_sr352_apply_set(subdev, "sr352_Init_Reg",
+				&sr352_regset_table.init); // For HD Recording
+		}
 		break;
 
 	default:
@@ -1183,7 +1263,8 @@ static int sensor_sr352_init(struct v4l2_subdev *subdev, u32 val)
 		goto p_err;
 	}
 
-	ret = sensor_sr352_apply_set(subdev, "sr352_stop_stream", &sr352_regset_table.stop_stream);
+	ret = sensor_sr352_apply_set(subdev, "sr352_stop_stream",
+		&sr352_regset_table.stop_stream);
 	if (ret) {
 		cam_err("%s: write cmd failed\n", __func__);
 		goto p_err;
@@ -1290,17 +1371,39 @@ static int sr352_set_capture_size(struct v4l2_subdev *subdev)
 	/*	err = sensor_sr352_apply_set(client, &sr352_regset_table.lowcapture);*/
 	}
 
+	if (state->fps != FRAME_RATE_AUTO)
+		err = sensor_sr352_apply_set(subdev, "sr352_fps_auto",
+			&sr352_regset_table.fps_auto);
+
 	cam_info("%s - width * height = %d * %d \n",__func__, width, height);
 	if(width == 2048 && height == 1536)
-		err = sensor_sr352_apply_set(subdev, "sr352_resol_2048_1536_capture", &sr352_regset_table.resol_2048_1536_capture);
+		err = sensor_sr352_apply_set(subdev, "sr352_resol_2048_1536_capture",
+			&sr352_regset_table.resol_2048_1536_capture);
 	else if(width == 2048 && height == 1152)
-		err = sensor_sr352_apply_set(subdev, "sr352_resol_2048_1152_capture", &sr352_regset_table.resol_2048_1152_capture);
+		err = sensor_sr352_apply_set(subdev, "sr352_resol_2048_1152_capture",
+			&sr352_regset_table.resol_2048_1152_capture);
 	else if(width == 1600 && height == 1200)
-		err = sensor_sr352_apply_set(subdev, "sr352_resol_1600_1200_capture", &sr352_regset_table.resol_1600_1200_capture);
+		err = sensor_sr352_apply_set(subdev, "sr352_resol_1600_1200_capture",
+			&sr352_regset_table.resol_1600_1200_capture);
+	else if(width == 1536 && height == 1536)
+		err = sensor_sr352_apply_set(subdev, "sr352_resol_1536_1536_capture",
+			&sr352_regset_table.resol_1536_1536_capture);
 	else if(width == 1280 && height == 720)
-		err = sensor_sr352_apply_set(subdev, "sr352_resol_1280_720_capture", &sr352_regset_table.resol_1280_720_capture);
-	else // 640x480
-		err = sensor_sr352_apply_set(subdev, "sr352_resol_640_480_capture", &sr352_regset_table.resol_640_480_capture);
+		err = sensor_sr352_apply_set(subdev, "sr352_resol_1280_720_capture",
+			&sr352_regset_table.resol_1280_720_capture);
+	else if(width == 720 && height == 480)
+		err = sensor_sr352_apply_set(subdev, "sr352_resol_720_480_capture",
+			&sr352_regset_table.resol_720_480_capture);
+	else if(width == 640 && height == 480)
+		err = sensor_sr352_apply_set(subdev, "sr352_resol_640_480_capture",
+			&sr352_regset_table.resol_640_480_capture);
+	else if(width == 320 && height == 240)
+		err = sensor_sr352_apply_set(subdev, "sr352_resol_320_240_capture",
+			&sr352_regset_table.resol_320_240_capture);
+	else
+		err = sensor_sr352_apply_set(subdev, "sr352_resol_2048_1536_capture",
+			&sr352_regset_table.resol_2048_1536_capture);
+
 
 	CHECK_ERR_MSG(err, "fail to capture_mode (%d)\n", err);
 
@@ -1366,6 +1469,15 @@ static int sr352_start_preview(struct v4l2_subdev *subdev)
 	CHECK_ERR_MSG(err, "failed to set preview size(%d)\n", err);
 
 	err = sr352_set_effect(subdev, state->effect);
+	CHECK_ERR(err);
+
+	err = sr352_set_metering(subdev, state->metering);
+	CHECK_ERR(err);
+
+	err = sr352_set_wb(subdev, state->white_balance);
+	CHECK_ERR(err);
+
+	err = sr352_set_brightness(subdev, state->brightness);
 	CHECK_ERR(err);
 
 	err = sensor_sr352_stream_on(subdev);
@@ -1969,14 +2081,14 @@ static int sensor_sr352_power_setpin(struct i2c_client *client,
 	SET_PIN(pdata, SENSOR_SCENARIO_EXTERNAL, GPIO_SCENARIO_ON, gpio_core_en, "CAM_CORE_1P25_EN", PIN_OUTPUT, 1, 2000);
 	SET_PIN(pdata, SENSOR_SCENARIO_EXTERNAL, GPIO_SCENARIO_ON, gpio_none, "pin", PIN_FUNCTION, 0, 5000);
 	SET_PIN(pdata, SENSOR_SCENARIO_EXTERNAL, GPIO_SCENARIO_ON, gpio_standby, NULL, PIN_OUTPUT, 1, 10000);
-	SET_PIN(pdata, SENSOR_SCENARIO_EXTERNAL, GPIO_SCENARIO_ON, gpio_reset, NULL, PIN_OUTPUT, 1, 10);
+	SET_PIN(pdata, SENSOR_SCENARIO_EXTERNAL, GPIO_SCENARIO_ON, gpio_reset, NULL, PIN_OUTPUT, 1, 1000);
 
 	/* REAR CAMERA - POWER OFF */
 	SET_PIN(pdata, SENSOR_SCENARIO_EXTERNAL, GPIO_SCENARIO_OFF, gpio_reset, NULL, PIN_OUTPUT, 0, 10);
 	SET_PIN(pdata, SENSOR_SCENARIO_EXTERNAL, GPIO_SCENARIO_OFF, gpio_none, "pin", PIN_FUNCTION, 1, 0);
 	SET_PIN(pdata, SENSOR_SCENARIO_EXTERNAL, GPIO_SCENARIO_OFF, gpio_standby, NULL, PIN_OUTPUT, 0, 1);
-	SET_PIN(pdata, SENSOR_SCENARIO_EXTERNAL, GPIO_SCENARIO_OFF, gpio_none, "VDD_CAM_SENSOR_A2P8", PIN_REGULATOR, 0, 0);
 	SET_PIN(pdata, SENSOR_SCENARIO_EXTERNAL, GPIO_SCENARIO_OFF, gpio_core_en, "CAM_CORE_1P25_EN", PIN_OUTPUT, 0, 1);
+	SET_PIN(pdata, SENSOR_SCENARIO_EXTERNAL, GPIO_SCENARIO_OFF, gpio_none, "VDD_CAM_SENSOR_A2P8", PIN_REGULATOR, 0, 1000);
 	SET_PIN(pdata, SENSOR_SCENARIO_EXTERNAL, GPIO_SCENARIO_OFF, gpio_io_en, "3M_CAM_1P8_EN", PIN_OUTPUT, 0, 1);
 
 /*

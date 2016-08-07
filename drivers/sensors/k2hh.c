@@ -88,7 +88,11 @@
 #define CTRL1_BDU_MASK                0x08
 
 /* CTRL2 */
-#define CTRL2_IG1_INT1                0x08
+#define CTRL2_DFC_MASK                0x60
+#define CTRL2_DFC_50				  0x00
+#define CTRL2_DFC_100				  0x20
+#define CTRL2_DFC_9					  0x40
+#define CTRL2_DFC_400				  0x60
 
 /* CTRL3 */
 #define CTRL3_IG1_INT1                0x08
@@ -128,6 +132,12 @@
 #define K2HH_ACC_BW_SCALE_ODR_DISABLE 0x00
 
 #define DYNAMIC_THRESHOLD             5000
+
+#define ENABLE_LPF_CUT_OFF_FREQ		  1
+#define ENABLE_LOG_ACCEL_MAX_OUT	  1
+#if defined(ENABLE_LOG_ACCEL_MAX_OUT)
+#define ACCEL_MAX_OUTPUT			  32760
+#endif
 
 enum {
 	OFF = 0,
@@ -361,6 +371,15 @@ static int k2hh_set_odr(struct k2hh_p *data)
 	data->odr = new_odr;
 
 	SENSOR_INFO("change odr %d\n", i);
+
+#if defined(ENABLE_LPF_CUT_OFF_FREQ)
+	// To increase LPF cut-off frequency, ODR/DFC
+	k2hh_i2c_read(data, CTRL2_REG, &buf, 1);
+
+	buf = (CTRL2_DFC_MASK & CTRL2_DFC_9) | ((~CTRL2_DFC_MASK) & buf);
+	k2hh_i2c_write(data, CTRL2_REG, buf);
+	SENSOR_INFO("ctrl2:%x\n", buf);
+#endif
 	return ret;
 }
 
@@ -616,6 +635,24 @@ static void k2hh_work_func(struct work_struct *work)
 	ret = k2hh_read_accel_xyz(data, &acc);
 	if (ret < 0)
 		goto exit;
+
+#if defined(ENABLE_LOG_ACCEL_MAX_OUT)
+	// For debugging if happened exceptional situation
+	if (acc.x > ACCEL_MAX_OUTPUT ||
+		acc.y > ACCEL_MAX_OUTPUT ||
+		acc.z > ACCEL_MAX_OUTPUT)
+	{
+		unsigned char buf[4], status;
+		k2hh_i2c_read(data, CTRL1_REG, buf, 4);	
+		k2hh_i2c_read(data, STATUS_REG, &status, 1);
+
+		SENSOR_INFO("MAX_OUTPUT x = %d, y = %d, z = %d\n",
+				acc.x, acc.y,acc.z);
+		SENSOR_INFO("CTRL(20~23) : %X, %X, %X, %X - STATUS(27h) : %X\n", 
+			buf[0],buf[1],buf[2],buf[3],status);
+	}
+#endif
+
 
 	ts = ktime_to_timespec(ktime_get_boottime());
 	timestamp_new = ts.tv_sec * 1000000000ULL + ts.tv_nsec;

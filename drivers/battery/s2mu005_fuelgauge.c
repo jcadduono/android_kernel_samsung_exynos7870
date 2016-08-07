@@ -140,26 +140,26 @@ static void WA_0_issue_at_init(struct s2mu005_fuelgauge_data *fuelgauge)
 
 	/* Step 3: [Surge test] get offset */
 	offset = UI_volt - FG_volt;
-	pr_err("%s: UI_volt(%d), FG_volt(%d), offset(%d)\n",
+	pr_info("%s: UI_volt(%d), FG_volt(%d), offset(%d)\n",
 			__func__, UI_volt, FG_volt, offset);
 
 	/* Step 4: [Surge test] */
 	s2mu005_read_reg_byte(fuelgauge->i2c, 0x53, &v_53);
 	s2mu005_read_reg_byte(fuelgauge->i2c, 0x52, &v_52);
-	pr_err("%s: v_53(0x%x), v_52(0x%x)\n", __func__, v_53, v_52);
+	pr_info("%s: v_53(0x%x), v_52(0x%x)\n", __func__, v_53, v_52);
 
 	a = (v_53 & 0x0F) << 8;
 	a += v_52;
 	a = a << 3;
-	pr_err("%s: a before add offset (0x%x)\n", __func__, a);
+	pr_info("%s: a before add offset (0x%x)\n", __func__, a);
 
 	a += (offset << 16) / 10000;
-	pr_err("%s: a after add offset (0x%x)\n", __func__, a);
+	pr_info("%s: a after add offset (0x%x)\n", __func__, a);
 
 	a &= 0x7FFF;
 	a = a >> 3;
 	a &= 0xfff;
-	pr_err("%s: (a >> 3)&0xFFF (0x%x)\n", __func__, a);
+	pr_info("%s: (a >> 3)&0xFFF (0x%x)\n", __func__, a);
 
 	/* modify 0x53[3:0] */
 	temp1 = v_53 & 0xF0;
@@ -249,26 +249,26 @@ static void WA_0_issue_at_init1(struct s2mu005_fuelgauge_data *fuelgauge, int ta
 
 	/* Step 3: [Surge test] get offset */
 	offset = UI_volt - FG_volt;
-	pr_err("%s: UI_volt(%d), FG_volt(%d), offset(%d)\n",
+	pr_info("%s: UI_volt(%d), FG_volt(%d), offset(%d)\n",
 			__func__, UI_volt, FG_volt, offset);
 
 	/* Step 4: [Surge test] */
 	s2mu005_read_reg_byte(fuelgauge->i2c, 0x53, &v_53);
 	s2mu005_read_reg_byte(fuelgauge->i2c, 0x52, &v_52);
-	pr_err("%s: v_53(0x%x), v_52(0x%x)\n", __func__, v_53, v_52);
+	pr_info("%s: v_53(0x%x), v_52(0x%x)\n", __func__, v_53, v_52);
 
 	a = (v_53 & 0x0F) << 8;
 	a += v_52;
 	a = a << 3;
-	pr_err("%s: a before add offset (0x%x)\n", __func__, a);
+	pr_info("%s: a before add offset (0x%x)\n", __func__, a);
 
 	a += (offset << 16) / 10000;
-	pr_err("%s: a after add offset (0x%x)\n", __func__, a);
+	pr_info("%s: a after add offset (0x%x)\n", __func__, a);
 
 	a &= 0x7FFF;
 	a = a >> 3;
 	a &= 0xfff;
-	pr_err("%s: (a >> 3)&0xFFF (0x%x)\n", __func__, a);
+	pr_info("%s: (a >> 3)&0xFFF (0x%x)\n", __func__, a);
 
 	/* modify 0x53[3:0] */
 	temp1 = v_53 & 0xF0;
@@ -372,12 +372,12 @@ static void s2mu005_reset_fg(struct s2mu005_fuelgauge_data *fuelgauge)
 	s2mu005_write_reg_byte(fuelgauge->i2c, 0x40, 0x04);
 
 	WA_0_issue_at_init(fuelgauge);
-	pr_err("%s: Reset FG completed\n", __func__);
+	pr_info("%s: Reset FG completed\n", __func__);
 }
 
 static void s2mu005_restart_gauging(struct s2mu005_fuelgauge_data *fuelgauge)
 {
-	pr_err("%s: Re-calculate SOC and voltage\n", __func__);
+	pr_info("%s: Re-calculate SOC and voltage\n", __func__);
 
 	//s2mu005_write_reg_byte(fuelgauge->i2c, 0x1f, 0x01);
 	s2mu005_write_reg_byte(fuelgauge->i2c, 0x21, 0x13);
@@ -389,7 +389,7 @@ static void s2mu005_restart_gauging(struct s2mu005_fuelgauge_data *fuelgauge)
 static void s2mu005_init_regs(struct s2mu005_fuelgauge_data *fuelgauge)
 {
 	u8 temp = 0;
-	pr_err("%s: s2mu005 fuelgauge initialize\n", __func__);
+	pr_info("%s: s2mu005 fuelgauge initialize\n", __func__);
 
 	/* Reduce top-off current difference between
 	 * Power on charging and Power off charging

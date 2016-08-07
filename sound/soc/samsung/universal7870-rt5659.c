@@ -285,11 +285,16 @@ static int universal7870_aif2_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_card *card = rtd->card;
 	struct snd_soc_dai *amixer_dai = rtd->codec_dais[0];
 	struct snd_soc_dai *codec_dai = rtd->codec_dais[1];
+	struct snd_interval *rate =
+			hw_param_interval(params, SNDRV_PCM_HW_PARAM_RATE);
 	int bfs, ret;
 
 	dev_info(card->dev, "aif2: %dch, %dHz, %dbytes\n",
 		 params_channels(params), params_rate(params),
 		 params_buffer_bytes(params));
+
+	dev_info(card->dev, "Fix up the rate to 48KHz\n");
+	rate->min = rate->max = 48000;
 
 	universal7870_set_mclk(1);
 

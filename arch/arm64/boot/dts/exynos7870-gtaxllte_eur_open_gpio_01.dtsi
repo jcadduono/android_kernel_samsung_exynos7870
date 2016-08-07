@@ -125,7 +125,6 @@
 
 		PIN_IN(gpd3-0, NONE, LV1);	/* HW_REV2 */
 		PIN_IN(gpd3-1, NONE, LV1);	/* HW_REV3 */
-		PIN_IN(gpd3-5, DOWN, LV1);	/* NC */
 		PIN_OUT_SET(gpd1-1, 0, LV1);	/* MOTOR_EN */
 	};
 	sleep6: sleep-state {
@@ -181,9 +180,9 @@
 		PIN_SLP(gpd3-2, PREV, NONE);	/* CODEC_LDO_EN */
 		PIN_SLP(gpd3-3, PREV, NONE);	/* CODEC_RST_N */
 		PIN_SLP(gpd3-4, PREV, NONE);	/* BUCK_BOOSTER_EN */
-		PIN_SLP(gpd3-5, INPUT, DOWN);	/* NC */
+		PIN_SLP(gpd3-5, OUT0, DOWN);	/* CAM_FLASH_EN */
 		PIN_SLP(gpd3-6, PREV, NONE);	/* WLAN_EN */
-		PIN_SLP(gpd3-7, INPUT, DOWN);	/* NC */
+		PIN_SLP(gpd3-7, PREV, NONE);	/* CAM_TORCH_EN */
 
 		PIN_SLP(gpd4-0, PREV, NONE);	/* BT_EN */
 		PIN_SLP(gpd4-1, PREV, NONE);	/* LCD_RST */

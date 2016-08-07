@@ -1020,6 +1020,19 @@ reject:
 	return ret;
 }
 
+static void hexdump(char *title, u8 *data, int len)
+{
+	int i;
+
+	printk("%s: length = %d @ %p\n", title, len, data);
+	for (i = 0; i < len; i++) {
+		printk("%02x ", data[i]);
+		if ((i & 0xf) == 0xf)
+			printk("\n");
+	}
+	printk("\n");
+}
+
 /*
  * returns 0 if the page was successfully decompressed
  * return -1 on entry not found or error
@@ -1066,6 +1079,14 @@ static int zswap_frontswap_load(unsigned type, pgoff_t offset,
 		ret = zswap_comp_op(ZSWAP_COMPOP_DECOMPRESS, src, entry->length,
 			dst, &dlen);
 #endif
+
+	if (ret) {
+		hexdump("src buffer", src, entry->length);
+		if (dlen)
+			hexdump("dest buffer", dst, dlen);
+		printk("zswap_comp_op returned %d\n", ret);
+	}
+
 	kunmap_atomic(dst);
 	zpool_unmap_handle(zswap_pool, entry->handle);
 	BUG_ON(ret);

@@ -995,6 +995,10 @@ extern int sky81296_torch_ctrl(int state);
 #if defined(CONFIG_TORCH_CURRENT_CHANGE_SUPPORT) && defined(CONFIG_LEDS_S2MPB02)
 extern int s2mpb02_set_torch_current(bool movie);
 #endif
+#ifdef CONFIG_FLED_SM5703
+extern bool flash_control_ready;
+extern int sm5703_led_mode_ctrl(int state);
+#endif
 
 int fimc_is_vender_set_torch(u32 aeflashMode)
 {
@@ -1010,6 +1014,12 @@ int fimc_is_vender_set_torch(u32 aeflashMode)
 		sm5705_fled_torch_on(SM5705_FLED_0);
 #elif defined(CONFIG_LEDS_S2MU005_FLASH) && defined(CONFIG_LEDS_SUPPORT_FRONT_FLASH)
 		s2mu005_led_mode_ctrl(S2MU005_FLED_MODE_MOVIE);
+#elif defined(CONFIG_FLED_SM5703)
+		sm5703_led_mode_ctrl(5);
+		if (flash_control_ready == false) {
+			sm5703_led_mode_ctrl(3);
+			flash_control_ready = true;
+		}
 #endif
 		break;
 	case AA_FLASHMODE_START: /*Pre flash mode*/
@@ -1021,11 +1031,19 @@ int fimc_is_vender_set_torch(u32 aeflashMode)
 		s2mpb02_set_torch_current(false);
 #elif defined(CONFIG_LEDS_SM5705)
 		sm5705_fled_torch_on(SM5705_FLED_0);
+#elif defined(CONFIG_FLED_SM5703)
+		sm5703_led_mode_ctrl(1);
+		if (flash_control_ready == false) {
+			sm5703_led_mode_ctrl(3);
+			flash_control_ready = true;
+		}
 #endif
 		break;
 	case AA_FLASHMODE_CAPTURE: /*Main flash mode*/
 #if defined(CONFIG_LEDS_SM5705)
 		sm5705_fled_flash_on(SM5705_FLED_0);
+#elif defined(CONFIG_FLED_SM5703)
+		sm5703_led_mode_ctrl(2);
 #endif
 		break;
 	case AA_FLASHMODE_OFF: /*OFF mode*/
@@ -1035,6 +1053,8 @@ int fimc_is_vender_set_torch(u32 aeflashMode)
 		sm5705_fled_led_off(SM5705_FLED_0);
 #elif defined(CONFIG_LEDS_S2MU005_FLASH) && defined(CONFIG_LEDS_SUPPORT_FRONT_FLASH)
 		s2mu005_led_mode_ctrl(S2MU005_FLED_MODE_OFF);
+#elif defined(CONFIG_FLED_SM5703)
+		sm5703_led_mode_ctrl(0);
 #endif
 		break;
 	default:

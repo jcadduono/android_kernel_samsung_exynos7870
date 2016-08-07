@@ -53,6 +53,32 @@
 #define DECRYPT		0
 #define ENCRYPT		1
 
+#ifdef CONFIG_SDP_DUMP
+void ecryptfs_dump_hex2(char *data, struct page *page)
+{
+
+	printk(KERN_DEBUG "ecryptfs_db : index [%lu] : %.2x %.2x %.2x %.2x %.2x %.2x %.2x %.2x : %.2x %.2x %.2x %.2x %.2x %.2x %.2x %.2x\n",
+		page->index,
+		(unsigned char)data[0],
+		(unsigned char)data[1],
+		(unsigned char)data[2],
+		(unsigned char)data[3],
+		(unsigned char)data[4],
+		(unsigned char)data[5],
+		(unsigned char)data[6],
+		(unsigned char)data[7],
+		(unsigned char)data[16],
+		(unsigned char)data[17],
+		(unsigned char)data[18],
+		(unsigned char)data[19],
+		(unsigned char)data[20],
+		(unsigned char)data[21],
+		(unsigned char)data[22],
+		(unsigned char)data[23]);
+
+}
+#endif
+
 /**
  * ecryptfs_to_hex
  * @dst: Buffer to take hex character representation of contents of
@@ -753,6 +779,12 @@ int ecryptfs_decrypt_page(struct page *page)
 	unsigned long extent_offset;
 	loff_t lower_offset;
 	int rc = 0;
+
+#ifdef CONFIG_SDP_DUMP
+	struct dentry *dentry = NULL;
+	void *tmp_page = NULL;
+#endif
+
 #ifdef CONFIG_SDP
 	sdp_fs_command_t *cmd = NULL;
 #endif
@@ -832,6 +864,25 @@ int ecryptfs_decrypt_page(struct page *page)
 		}
 	}
 out:
+
+#ifdef CONFIG_SDP_DUMP
+	spin_lock(&ecryptfs_inode->i_lock);
+	hlist_for_each_entry(dentry, &ecryptfs_inode->i_dentry, d_u.d_alias) {
+		if (!strcmp(dentry->d_name.name, "contacts2.db")) {
+			break;
+		}
+	}
+	spin_unlock(&ecryptfs_inode->i_lock);
+	if (dentry && !strcmp(dentry->d_name.name, "contacts2.db")) {
+		//Decrypted page
+		tmp_page = kmap(page);
+		if(tmp_page) {
+			ecryptfs_dump_hex2(tmp_page, page);
+			kunmap(tmp_page);
+		}
+	}
+#endif
+
 #ifdef CONFIG_SDP
 	if(cmd) {
 		sdp_fs_request(cmd, NULL);

@@ -352,6 +352,42 @@ static const struct sc_fmt sc_formats[] = {
 		.v_shift	= 1,
 		.is_alphablend_fmt = 1,
 		.alphablend_plane_num = 1,
+	}, {
+		/* Src Blending : NV21M + RGB32 */
+		.name		= "NV21M-RGB32",
+		.pixelformat	= V4L2_PIX_FMT_NV21M_RGB32,
+		.cfg_val	= SCALER_CFG_FMT_YCRCB420_2P,
+		.bitperpixel	= { 8, 4, 32 },
+		.num_planes	= 3,
+		.num_comp	= 3,
+		.h_shift	= 1,
+		.v_shift	= 1,
+		.is_alphablend_fmt = 1,
+		.alphablend_plane_num = 2,
+	}, {
+		/* Src Blending : NV21M + BGR32 */
+		.name		= "NV21M-BGR32",
+		.pixelformat	= V4L2_PIX_FMT_NV21M_BGR32,
+		.cfg_val	= SCALER_CFG_FMT_YCRCB420_2P,
+		.bitperpixel	= { 8, 4, 32 },
+		.num_planes	= 3,
+		.num_comp	= 3,
+		.h_shift	= 1,
+		.v_shift	= 1,
+		.is_alphablend_fmt = 1,
+		.alphablend_plane_num = 2,
+	}, {
+		/* Src Blending : NV21 + RGB32 */
+		.name		= "NV21-RGB32",
+		.pixelformat	= V4L2_PIX_FMT_NV21_RGB32,
+		.cfg_val	= SCALER_CFG_FMT_YCRCB420_2P,
+		.bitperpixel	= { 12, 32 },
+		.num_planes	= 2,
+		.num_comp	= 3,
+		.h_shift	= 1,
+		.v_shift	= 1,
+		.is_alphablend_fmt = 1,
+		.alphablend_plane_num = 1,
 	},
 };
 

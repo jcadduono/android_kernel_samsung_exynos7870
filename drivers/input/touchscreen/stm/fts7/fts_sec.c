@@ -713,12 +713,17 @@ static int fts_get_channel_info(struct fts_ts_info *info)
 	memset(data, 0x0, FTS_EVENT_SIZE);
 
 	fts_interrupt_set(info, INT_DISABLE);
+	fts_release_all_finger(info);
+
 	fts_command(info, FLUSHBUFFER);
 
 	fts_write_reg(info, &cmd[0], 4);
 	cmd[0]=READ_ONE_EVENT;
 	while (fts_read_reg
 	       (info, &cmd[0], 1, (unsigned char *)data, FTS_EVENT_SIZE)) {
+
+		tsp_debug_info(true, &info->client->dev, "%s : [%x][%x][%x]\n ",     // Debug code  
+					__func__, data[0], data[1], data[2]);
 
 		if (data[0] == EVENTID_RESULT_READ_REGISTER) {
 			if ((data[1] == cmd[1]) && (data[2] == cmd[2]))
@@ -729,6 +734,11 @@ static int fts_get_channel_info(struct fts_ts_info *info)
 				rc = 0;
 				break;
 			}
+		} else if ((data[0]==0x00)&&(data[1]==0x00)&&(data[2]==0x00)) {
+			cmd[0] = 0xB2;
+			fts_write_reg(info, &cmd[0], 4);
+			fts_delay(10);
+			cmd[0]=READ_ONE_EVENT;
 		}
 
 		if (retry++ > 30) {
@@ -987,6 +997,7 @@ static int fts_panel_ito_test(struct fts_ts_info *info)
 
 	disable_irq(info->irq);
 	fts_interrupt_set(info, INT_DISABLE);
+	fts_release_all_finger(info);
 	fts_write_reg(info, &regAdd[0], 4);
 
 	fts_command(info, FLUSHBUFFER);
@@ -1274,7 +1285,9 @@ static void get_chip_name(void *device_data)
 
 	if (info->digital_rev != FTS_DIGITAL_REV_3)
 	{
-		if((strncmp(info->board->project_name, "gtaxl", 5) == 0) || (strncmp(info->board->project_name, "matisse", 7) == 0)){
+		if(strncmp(info->board->project_name, "gtaxl", 5) == 0){
+			strncpy(buff, "FTS1A96AS2BE", sizeof(buff));
+		}else if(strncmp(info->board->project_name, "matisse", 7) == 0){
 			strncpy(buff, "FTS1A96AS3BE", sizeof(buff));
 		}else
 			strncpy(buff, "FTS5AD56", sizeof(buff));
@@ -1346,6 +1359,7 @@ static void get_checksum_data(void *device_data)
 	}
 	else	// For STM_VER7
 	{
+		fts_release_all_finger(info);
 		fts_command(info, FLUSHBUFFER);
 		regAdd[0] = 0xb2;
 		regAdd[1] = 0x07;
@@ -1843,6 +1857,7 @@ static void fts_read_ix_data(struct fts_ts_info *info, bool allnode)
 
 	disable_irq(info->irq);
 	fts_interrupt_set(info, INT_DISABLE);
+	fts_release_all_finger(info);
 
 	if (info->stm_ver == STM_VER7)
 	{
@@ -2042,6 +2057,15 @@ static void fts_read_ix_data(struct fts_ts_info *info, bool allnode)
 				else
 					TEMP_COMP = 25;
 				sense_ix_data[i] = rx_ix1 + rx_ix2[i + DOFFSET] - TEMP_COMP;
+			}else if((strncmp(info->board->project_name, "gtaxl", 5) == 0)) {
+				int TEMP_COMP = 0;
+				if (i == 0 )
+					TEMP_COMP = 20;
+				else if (i == 1 || i == 44)
+					TEMP_COMP = 10;
+				else
+					TEMP_COMP = 0;
+				sense_ix_data[i] = rx_ix1 + rx_ix2[i + DOFFSET] - TEMP_COMP;
 			} else {
 				sense_ix_data[i] = rx_ix1 + rx_ix2[i + DOFFSET];
 			}
@@ -2195,6 +2219,8 @@ static void fts_read_self_raw_frame(struct fts_ts_info *info, unsigned short oAd
 
 	disable_irq(info->irq);
 	fts_interrupt_set(info, INT_DISABLE);
+	fts_release_all_finger(info);
+
 	//fts_command(info, SENSEOFF);
 	
 	fts_delay(50);
@@ -2360,9 +2386,9 @@ static void run_self_raw_read_all(void *device_data)
 	set_default_result(info);
 
 	if (info->digital_rev == FTS_DIGITAL_REV_1)
-		fts_read_self_raw_frame(info, FTS_WATER_SELF_RAW_ADDR_D1,false);
+		fts_read_self_raw_frame(info, FTS_WATER_SELF_RAW_ADDR_D1,true);
 	else
-		fts_read_self_raw_frame(info, FTS_WATER_SELF_RAW_ADDR,false);
+		fts_read_self_raw_frame(info, FTS_WATER_SELF_RAW_ADDR,true);
 
 }
 
@@ -2690,7 +2716,7 @@ static void run_cx_data_read(void *device_data)
 	int i, j, cx_rx_length, max_tx_length, max_rx_length, address_offset = 0, start_tx_offset = 0, retry = 0;
 	unsigned char *pStr = NULL;
 	unsigned char pTmp[16] = { 0 };
-	unsigned char cx1_data;
+	unsigned char cx1_data = 0;
 
 	int	comp_header_addr, comp_start_addr;
 
@@ -2715,6 +2741,7 @@ static void run_cx_data_read(void *device_data)
 
 	disable_irq(info->irq);
 	fts_interrupt_set(info, INT_DISABLE);
+	fts_release_all_finger(info);
 
 	if (info->stm_ver == STM_VER7)
 	{
@@ -2877,6 +2904,17 @@ static void run_cx_data_read(void *device_data)
 					else
 						TEMP_COMP = 0;
 					info->cx_data[(j * rx_num) + i] = ReadData[j][i + DOFFSET] - TEMP_COMP;
+				} else if((strncmp(info->board->project_name, "gtaxl", 5) == 0)) {
+					int TEMP_COMP = 0;
+					if ( j ==26 )
+						TEMP_COMP = 2;
+					else if (j == 27 && (i == 0|| i == 1 ))
+						TEMP_COMP = 6;
+					else if (j == 27 && i > 1)
+						TEMP_COMP = 4;
+					else
+						TEMP_COMP = 0;
+					info->cx_data[(j * rx_num) + i] = ReadData[j][i + DOFFSET] - TEMP_COMP;
 				} else {
 					info->cx_data[(j * rx_num) + i] = ReadData[j][i + DOFFSET];
 				}
@@ -3012,13 +3050,15 @@ static void fts_read_wtr_cx_data(struct fts_ts_info *info, bool allnode)
 {
 	char buff[512] = { 0 };
 	unsigned char regAdd[8];
-	unsigned char *result_tx, *result_rx;
+	unsigned char *result_tx = NULL;
+	unsigned char *result_rx = NULL;
 	char buf[8];
 	char temp[8];
 	unsigned char r_addr = READ_ONE_EVENT;
 	unsigned int addr;
 	unsigned int ii, kk = 0, retry;
 	unsigned int tx_num, rx_num;
+	int buff_size;
 
 	if (info->touch_stopped) {
 		tsp_debug_info(true, &info->client->dev, "%s: [ERROR] Touch is stopped\n",
@@ -3033,6 +3073,7 @@ static void fts_read_wtr_cx_data(struct fts_ts_info *info, bool allnode)
 
 	disable_irq(info->irq);
 	fts_interrupt_set(info, INT_DISABLE);
+	fts_release_all_finger(info);
 
 	if (info->stm_ver == STM_VER7)
 	{
@@ -3056,8 +3097,11 @@ static void fts_read_wtr_cx_data(struct fts_ts_info *info, bool allnode)
 	fts_command(info, FLUSHBUFFER);
 	fts_delay(50);
 
-	result_tx = kzalloc(info->ForceChannelLength + 10, GFP_KERNEL);
-	result_rx = kzalloc(info->SenseChannelLength + 10, GFP_KERNEL);
+	buff_size = info->ForceChannelLength + 10;
+	result_tx = kzalloc(buff_size, GFP_KERNEL);
+	buff_size = info->SenseChannelLength + 10;
+	result_rx = kzalloc(buff_size, GFP_KERNEL);
+
 	if (!result_tx || !result_rx) {
 		tsp_debug_err(true, &info->client->dev, "%s: failed to alloc mem\n",
 				__func__);
@@ -3335,6 +3379,9 @@ static void run_key_cx_data_read(void *device_data)
 		key_cx2_data[1] = ReadData[1 + DOFFSET];
 		total_cx_data[0] = key_cx1_data * 2 + key_cx2_data[0];
 		total_cx_data[1] = key_cx1_data * 2 + key_cx2_data[1];
+
+		//snprintf(buff, sizeof(buff), "%s", "OK");
+		snprintf(buff, sizeof(buff), "%d,%d,%d,%d", key_cx2_data[0], key_cx2_data[1], total_cx_data[0], total_cx_data[1]);
 	}
 	else
 	{
@@ -3368,13 +3415,13 @@ static void run_key_cx_data_read(void *device_data)
 		key_cx2_data[0] = ReadData[2]; key_cx2_data[1] = ReadData[3]; 
 
 		tsp_debug_info(true, &info->client->dev, "%s: [Key 1:%d][Key 2:%d]\n", __func__,
-		            key_cx2_data[0], key_cx2_data[1]);
+					key_cx2_data[0], key_cx2_data[1]);
+
+		//snprintf(buff, sizeof(buff), "%s", "OK");
+		snprintf(buff, sizeof(buff), "%d,%d", key_cx2_data[0], key_cx2_data[1]);
 	}
 
-	//snprintf(buff, sizeof(buff), "%s", "OK");
-	snprintf(buff, sizeof(buff), "%d,%d,%d,%d", key_cx2_data[0], key_cx2_data[1], total_cx_data[0], total_cx_data[1]);
 	enable_irq(info->irq);
-
 	info->cmd_state = CMD_STATUS_OK;
 	set_cmd_result(info, buff, strnlen(buff, sizeof(buff)));
 	tsp_debug_info(true, &info->client->dev, "%s: %s\n", __func__, buff);

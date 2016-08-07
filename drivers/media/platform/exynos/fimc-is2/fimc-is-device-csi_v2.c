@@ -139,7 +139,7 @@ static inline void csi_s_config_dma(struct fimc_is_device_csi *csi, struct fimc_
 			}
 		}
 
-		csi_hw_s_config_dma(csi->base_reg, i, image);
+		csi_hw_s_config_dma(csi->base_reg, i, vci_config, image);
 	}
 }
 

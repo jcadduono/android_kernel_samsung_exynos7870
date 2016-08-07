@@ -21,14 +21,15 @@
 #include <linux/module.h>
 #include <linux/memblock.h>
 #include <linux/file.h>
-#include <linux/fdtable.h>
-#include <linux/mount.h>
 #include <linux/reboot.h>
+#include <linux/sec_ext.h>
 #include <linux/sec_debug.h>
 #include <linux/slab.h>
 
 #include <asm/io.h>
 #include <asm/cacheflush.h>
+
+#include <soc/samsung/exynos-pmu.h>
 
 #ifdef CONFIG_SEC_DEBUG
 
@@ -50,11 +51,16 @@ union sec_debug_level_t {
 module_param_named(enable, sec_debug_level.en.kernel_fault, ushort, 0644);
 module_param_named(enable_user, sec_debug_level.en.user_fault, ushort, 0644);
 module_param_named(level, sec_debug_level.uint_val, uint, 0644);
+
 #ifdef CONFIG_SEC_DEBUG_MDM_SEPERATE_CRASH
 static unsigned int enable_cp_debug = 1;
-module_param_named(enable_cp_debug,enable_cp_debug, uint, 0644);
-#endif
+module_param_named(enable_cp_debug, enable_cp_debug, uint, 0644);
 
+int sec_debug_is_enabled_for_ssr(void)
+{
+	return enable_cp_debug;
+}
+#endif
 
 int sec_debug_get_debug_level(void)
 {
@@ -195,13 +201,6 @@ static void sec_debug_kmsg_dump(struct kmsg_dumper *dumper, enum kmsg_dump_reaso
 	kmsg_dump_get_buffer(dumper, true, ptr, SZ_4K - SZ_1K, NULL);
 
 }
-
-#ifdef CONFIG_SEC_DEBUG_MDM_SEPERATE_CRASH
-int sec_debug_is_enabled_for_ssr(void)
-{
-	return enable_cp_debug;
-}
-#endif
 
 static struct kmsg_dumper sec_dumper = {
 	.dump = sec_debug_kmsg_dump,
@@ -555,222 +554,6 @@ void sec_debug_post_panic_handler(void)
 					raw_smp_processor_id());
 }
 
-#ifdef CONFIG_SEC_DEBUG_USER_RESET
-static int set_reset_reason_proc_show(struct seq_file *m, void *v)
-{
-	if (reset_reason == RR_S)
-		seq_printf(m, "SPON\n");
-	else if (reset_reason == RR_W)
-		seq_printf(m, "WPON\n");
-	else if (reset_reason == RR_D)
-		seq_printf(m, "DPON\n");
-	else if (reset_reason == RR_K)
-		seq_printf(m, "KPON\n");
-	else if (reset_reason == RR_M)
-		seq_printf(m, "MPON\n");
-	else if (reset_reason == RR_P)
-		seq_printf(m, "PPON\n");
-	else if (reset_reason == RR_R)
-		seq_printf(m, "RPON\n");
-	else if (reset_reason == RR_B)
-		seq_printf(m, "BPON\n");
-	else
-		seq_printf(m, "NPON\n");
-
-	return 0;
-}
-
-static int sec_reset_reason_proc_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, set_reset_reason_proc_show, NULL);
-}
-
-static const struct file_operations sec_reset_reason_proc_fops = {
-	.open = sec_reset_reason_proc_open,
-	.read = seq_read,
-	.llseek = seq_lseek,
-	.release = single_release,
-};
-
-static int __init sec_debug_reset_reason_init(void)
-{
-	struct proc_dir_entry *entry;
-
-	entry = proc_create("reset_reason", S_IWUGO, NULL,
-		&sec_reset_reason_proc_fops);
-
-	if (!entry)
-		return -ENOMEM;
-
-	return 0;
-}
-
-device_initcall(sec_debug_reset_reason_init);
-#endif
-
-#ifdef CONFIG_SEC_DEBUG_FILE_LEAK
-void sec_debug_print_file_list(void)
-{
-	int i=0;
-	unsigned int nCnt=0;
-	struct file *file=NULL;
-	struct files_struct *files = current->files;
-	const char *pRootName=NULL;
-	const char *pFileName=NULL;
-
-	nCnt=files->fdt->max_fds;
-
-	printk(KERN_ERR " [Opened file list of process %s(PID:%d, TGID:%d) :: %d]\n",
-		current->group_leader->comm, current->pid, current->tgid,nCnt);
-
-	for (i=0; i<nCnt; i++) {
-
-		rcu_read_lock();
-		file = fcheck_files(files, i);
-
-		pRootName=NULL;
-		pFileName=NULL;
-
-		if (file) {
-			if (file->f_path.mnt
-				&& file->f_path.mnt->mnt_root
-				&& file->f_path.mnt->mnt_root->d_name.name)
-				pRootName=file->f_path.mnt->mnt_root->d_name.name;
-
-			if (file->f_path.dentry && file->f_path.dentry->d_name.name)
-				pFileName=file->f_path.dentry->d_name.name;
-
-			printk(KERN_ERR "[%04d]%s%s\n",i,pRootName==NULL?"null":pRootName,
-							pFileName==NULL?"null":pFileName);
-		}
-		rcu_read_unlock();
-	}
-}
-
-void sec_debug_EMFILE_error_proc(unsigned long files_addr)
-{
-	if (files_addr!=(unsigned long)(current->files)) {
-		printk(KERN_ERR "Too many open files Error at %pS\n"
-						"%s(%d) thread of %s process tried fd allocation by proxy.\n"
-						"files_addr = 0x%lx, current->files=0x%p\n",
-					__builtin_return_address(0),
-					current->comm,current->tgid,current->group_leader->comm,
-					files_addr, current->files);
-		return;
-	}
-
-	printk(KERN_ERR "Too many open files(%d:%s) at %pS\n",
-		current->tgid, current->group_leader->comm,__builtin_return_address(0));
-
-	if (!sec_debug_level.en.kernel_fault)
-		return;
-
-	/* We check EMFILE error in only "system_server","mediaserver" and "surfaceflinger" process.*/
-	if (!strcmp(current->group_leader->comm, "system_server")
-		||!strcmp(current->group_leader->comm, "mediaserver")
-		||!strcmp(current->group_leader->comm, "surfaceflinger")){
-		sec_debug_print_file_list();
-		panic("Too many open files");
-	}
-}
-#endif
-
-#if defined(CONFIG_SEC_PARAM)
-#define SEC_PARAM_NAME "/dev/block/param"
-struct sec_param_data_s {
-	struct work_struct sec_param_work;
-	unsigned long offset;
-	char val;
-};
-static struct sec_param_data_s sec_param_data;
-static DEFINE_MUTEX(sec_param_mutex);
-
-static void sec_param_update(struct work_struct *work)
-{
-	int ret = -1;
-	struct file *fp;
-	struct sec_param_data_s *param_data =
-		container_of(work, struct sec_param_data_s, sec_param_work);
-
-	fp = filp_open(SEC_PARAM_NAME, O_WRONLY | O_SYNC, 0);
-	if (IS_ERR(fp)) {
-		pr_err("%s: filp_open error %ld\n", __func__, PTR_ERR(fp));
-		return;
-	}
-	pr_info("%s: set param %c at %lu\n", __func__,
-				param_data->val, param_data->offset);
-	ret = fp->f_op->llseek(fp, param_data->offset, SEEK_SET);
-	if (ret < 0) {
-		pr_err("%s: llseek error %d!\n", __func__, ret);
-		goto close_fp_out;
-	}
-
-	ret = fp->f_op->write(fp, &param_data->val, 1, &(fp->f_pos));
-	if (ret < 0)
-		pr_err("%s: write error! %d\n", __func__, ret);
-
-close_fp_out:
-	if (fp)
-		filp_close(fp, NULL);
-
-	pr_info("%s: exit %d\n", __func__, ret);
-	return;
-}
-
-/*
-  success : ret >= 0
-  fail : ret < 0
- */
-int set_param(unsigned long offset, char val)
-{
-	int ret = -1;
-
-	mutex_lock(&sec_param_mutex);
-
-	if ((offset != CM_OFFSET) && (offset != CM_OFFSET + CM_OFFSET_LIMIT)
-		&& (offset != GSP_OFFSET))
-		goto unlock_out;
-
-	if ((val != '0') && (val != '1'))
-		goto unlock_out;
-
-	sec_param_data.offset = offset;
-	sec_param_data.val = val;
-
-	schedule_work(&sec_param_data.sec_param_work);
-
-	/* how to determine to return success or fail ? */
-
-	ret = 0;
-unlock_out:
-	mutex_unlock(&sec_param_mutex);
-	return ret;
-}
-
-static int __init sec_param_work_init(void)
-{
-	pr_info("%s: start\n", __func__);
-
-	sec_param_data.offset = 0;
-	sec_param_data.val = '0';
-
-	INIT_WORK(&sec_param_data.sec_param_work, sec_param_update);
-
-	return 0;
-}
-
-static void __exit sec_param_work_exit(void)
-{
-	cancel_work_sync(&sec_param_data.sec_param_work);
-	pr_info("%s: exit\n", __func__);
-}
-module_init(sec_param_work_init);
-module_exit(sec_param_work_exit);
-
-#endif /* CONFIG_SEC_PARAM */
-
-#endif /* CONFIG_SEC_DEBUG */
-
 #ifdef CONFIG_SEC_DEBUG_LAST_KMSG
 static char *last_kmsg_buffer;
 static size_t last_kmsg_size;
@@ -858,3 +641,126 @@ static int __init sec_last_kmsg_late_init(void)
 
 late_initcall(sec_last_kmsg_late_init);
 #endif /* CONFIG_SEC_DEBUG_LAST_KMSG */
+
+#ifdef CONFIG_SEC_DEBUG_USER_RESET
+static int set_reset_reason_proc_show(struct seq_file *m, void *v)
+{
+	if (reset_reason == RR_S)
+		seq_printf(m, "SPON\n");
+	else if (reset_reason == RR_W)
+		seq_printf(m, "WPON\n");
+	else if (reset_reason == RR_D)
+		seq_printf(m, "DPON\n");
+	else if (reset_reason == RR_K)
+		seq_printf(m, "KPON\n");
+	else if (reset_reason == RR_M)
+		seq_printf(m, "MPON\n");
+	else if (reset_reason == RR_P)
+		seq_printf(m, "PPON\n");
+	else if (reset_reason == RR_R)
+		seq_printf(m, "RPON\n");
+	else if (reset_reason == RR_B)
+		seq_printf(m, "BPON\n");
+	else
+		seq_printf(m, "NPON\n");
+
+	return 0;
+}
+
+static int sec_reset_reason_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, set_reset_reason_proc_show, NULL);
+}
+
+static const struct file_operations sec_reset_reason_proc_fops = {
+	.open = sec_reset_reason_proc_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
+static int __init sec_debug_reset_reason_init(void)
+{
+	struct proc_dir_entry *entry;
+
+	entry = proc_create("reset_reason", S_IWUGO, NULL,
+		&sec_reset_reason_proc_fops);
+
+	if (!entry)
+		return -ENOMEM;
+
+	return 0;
+}
+
+device_initcall(sec_debug_reset_reason_init);
+#endif /* CONFIG_SEC_DEBUG_USER_RESET */
+
+#ifdef CONFIG_SEC_DEBUG_FILE_LEAK
+void sec_debug_print_file_list(void)
+{
+	int i=0;
+	unsigned int nCnt=0;
+	struct file *file=NULL;
+	struct files_struct *files = current->files;
+	const char *pRootName=NULL;
+	const char *pFileName=NULL;
+
+	nCnt=files->fdt->max_fds;
+
+	printk(KERN_ERR " [Opened file list of process %s(PID:%d, TGID:%d) :: %d]\n",
+		current->group_leader->comm, current->pid, current->tgid,nCnt);
+
+	for (i=0; i<nCnt; i++) {
+
+		rcu_read_lock();
+		file = fcheck_files(files, i);
+
+		pRootName=NULL;
+		pFileName=NULL;
+
+		if (file) {
+			if (file->f_path.mnt
+				&& file->f_path.mnt->mnt_root
+				&& file->f_path.mnt->mnt_root->d_name.name)
+				pRootName=file->f_path.mnt->mnt_root->d_name.name;
+
+			if (file->f_path.dentry && file->f_path.dentry->d_name.name)
+				pFileName=file->f_path.dentry->d_name.name;
+
+			printk(KERN_ERR "[%04d]%s%s\n",i,pRootName==NULL?"null":pRootName,
+							pFileName==NULL?"null":pFileName);
+		}
+		rcu_read_unlock();
+	}
+}
+
+void sec_debug_EMFILE_error_proc(unsigned long files_addr)
+{
+	if (files_addr!=(unsigned long)(current->files)) {
+		printk(KERN_ERR "Too many open files Error at %pS\n"
+						"%s(%d) thread of %s process tried fd allocation by proxy.\n"
+						"files_addr = 0x%lx, current->files=0x%p\n",
+					__builtin_return_address(0),
+					current->comm,current->tgid,current->group_leader->comm,
+					files_addr, current->files);
+		return;
+	}
+
+	printk(KERN_ERR "Too many open files(%d:%s) at %pS\n",
+		current->tgid, current->group_leader->comm,__builtin_return_address(0));
+
+	if (!sec_debug_level.en.kernel_fault)
+		return;
+
+	/* We check EMFILE error in only "system_server","mediaserver" and "surfaceflinger" process.*/
+	if (!strcmp(current->group_leader->comm, "system_server")
+		||!strcmp(current->group_leader->comm, "mediaserver")
+		||!strcmp(current->group_leader->comm, "surfaceflinger")){
+		sec_debug_print_file_list();
+		panic("Too many open files");
+	}
+}
+#endif /* CONFIG_SEC_DEBUG_FILE_LEAK */
+
+#endif /* CONFIG_SEC_DEBUG */
+

@@ -127,7 +127,10 @@ extern int sc_log_level;
 #define V4L2_PIX_FMT_NV12M_RGB555X   v4l2_fourcc('N', 'V', 'R', '5') /* 12  Y/CbCr 4:2:0 RGB555X  */
 #define V4L2_PIX_FMT_NV12MT_16X16_RGB32 v4l2_fourcc('V', 'M', 'R', 'G') /* 12  Y/CbCr 4:2:0 16x16 macroblocks */
 #define V4L2_PIX_FMT_NV12_RGB32 v4l2_fourcc('N', 'V', '1', 'R') /* 12  Y/CbCr 4:2:0 RGBA */
-#define V4L2_PIX_FMT_NV12N_RGB32 v4l2_fourcc('N', 'N', '1', 'R') /* 12  Y/CbCr 4:2:0 RGBA */
+#define V4L2_PIX_FMT_NV12N_RGB32   v4l2_fourcc('N', 'N', '1', 'R') /* 12  Y/CbCr 4:2:0 RGBA */
+#define V4L2_PIX_FMT_NV21M_RGB32   v4l2_fourcc('V', 'N', 'R', 'G') /* 21  Y/CbCr 4:2:0 RGBA  */
+#define V4L2_PIX_FMT_NV21M_BGR32   v4l2_fourcc('V', 'N', 'B', 'G') /* 21  Y/CbCr 4:2:0 ARGB  */
+#define V4L2_PIX_FMT_NV21_RGB32    v4l2_fourcc('V', 'N', '1', 'R') /* 21  Y/CbCr 4:2:0 RGBA */
 
 /* for denoising filter */
 #define SC_CID_DNOISE_FT		(V4L2_CID_EXYNOS_BASE + 150)

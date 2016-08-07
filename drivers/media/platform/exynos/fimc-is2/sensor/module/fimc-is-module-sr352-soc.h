@@ -124,17 +124,28 @@ struct sensor_regset_table {
 	struct sensor_regset resol_528_432;
 	struct sensor_regset resol_640_480;
 	struct sensor_regset resol_704_576;
+	struct sensor_regset resol_720_480;
+	struct sensor_regset resol_720_720;
 	struct sensor_regset resol_800_600;
 	struct sensor_regset resol_1280_960;
 	struct sensor_regset resol_1600_1200;
 	struct sensor_regset resol_1024_576;
 	struct sensor_regset resol_1024_768;
 	struct sensor_regset resol_1280_720;
+	struct sensor_regset resol_176_144_capture;
+	struct sensor_regset resol_320_240_capture;
 	struct sensor_regset resol_640_480_capture;
+	struct sensor_regset resol_720_480_capture;
 	struct sensor_regset resol_1280_720_capture;
+	struct sensor_regset resol_1536_1536_capture;
 	struct sensor_regset resol_1600_1200_capture;
 	struct sensor_regset resol_2048_1152_capture;
 	struct sensor_regset resol_2048_1536_capture;
+	struct sensor_regset resol_176_144_video;
+	struct sensor_regset resol_320_240_video;
+	struct sensor_regset resol_640_480_video;
+	struct sensor_regset resol_720_480_video;
+	struct sensor_regset resol_1280_720_video;
 	struct sensor_regset capture_mode;
 	struct sensor_regset hflip;
 	struct sensor_regset vflip;
@@ -194,6 +205,7 @@ enum sr352_fps_index {
 	PREVIEW_SZ_640x360 :	640x360, 16:9
 	PREVIEW_SZ_VGA :		640x480
 	PREVIEW_SZ_D1 :			720x480
+	PREVIEW_SZ_720x720 :	720x720
 	PREVIEW_SZ_880x720 :	880x720
 	PREVIEW_SZ_SVGA :		800x600
 	PREVIEW_SZ_1024x576 :	1024x576, 16:9
@@ -205,6 +217,7 @@ enum sr352_fps_index {
 enum sr352_preview_frame_size {
 	PREVIEW_SZ_CIF,			/* 352x288 */
 	PREVIEW_SZ_VGA,			/* 640x480 */
+	PREVIEW_SZ_720x720,		/* 720x720 */
 	PREVIEW_SZ_1024x576,	/* 1024x576 */
 	PREVIEW_SZ_XGA,			/* 1024x768 */
 	PREVIEW_SZ_HD,			/* 1280x720 */
@@ -226,11 +239,12 @@ enum sr352_preview_frame_size {
  *	CAPTURE_SZ_5MP:	2560x1920
  */
 enum sr352_capture_frame_size {
-	CAPTURE_SZ_VGA = 0,	/* 640x480 */
-	CAPTURE_SZ_HD,		/* 1280x720 */
-	CAPTURE_SZ_2MP,		/* UXGA - 1600x1200 */
-	CAPTURE_SZ_W2MP,	/* 2048x1152 */
-	CAPTURE_SZ_3MP,		/* 2048x1536 */
+	CAPTURE_SZ_VGA = 0,		/* 640x480 */
+	CAPTURE_SZ_HD,			/* 1280x720 */
+	CAPTURE_SZ_1536x1536,	/* 1536x1536 */
+	CAPTURE_SZ_2MP,			/* UXGA - 1600x1200 */
+	CAPTURE_SZ_W2MP,		/* 2048x1152 */
+	CAPTURE_SZ_3MP,			/* 2048x1536 */
 	CAPTURE_SZ_MAX,
 };
 
@@ -348,5 +362,5 @@ struct sr352_state {
 
 int sensor_sr352_probe(struct i2c_client *client,
 	const struct i2c_device_id *id);
-
+int sensor_sr352_stream_on(struct v4l2_subdev *subdev);
 #endif

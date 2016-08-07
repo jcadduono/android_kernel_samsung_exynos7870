@@ -149,10 +149,10 @@ struct fimc_is_device_sensor_peri *find_peri_by_preprocessor_id(struct fimc_is_d
 static void fimc_is_sensor_init_expecting_dm(struct fimc_is_device_sensor *device,
 	struct fimc_is_cis *cis)
 {
-	int i, j;
-	u32 m_fcount, expect_index, collect_index = 0;
-	u32 sensitivity[EXPECT_DM_NUM];
-	u64 exposureTime[EXPECT_DM_NUM];
+	int i = 0;
+	u32 m_fcount;
+	u32 sensitivity;
+	u64 exposureTime;
 	struct fimc_is_sensor_ctl *module_ctl;
 	camera2_sensor_ctl_t *sensor_ctrl = NULL;
 	camera2_sensor_uctl_t *sensor_uctrl = NULL;
@@ -163,94 +163,25 @@ static void fimc_is_sensor_init_expecting_dm(struct fimc_is_device_sensor *devic
 	}
 
 	m_fcount = (device->fcount + 1) % EXPECT_DM_NUM;
+
 	module_ctl = &cis->sensor_ctls[m_fcount];
+	sensor_ctrl = &module_ctl->cur_cam20_sensor_ctrl;
+	sensor_uctrl = &module_ctl->cur_cam20_sensor_udctrl;
 
-	/*
-	 * If sensor connected to 3AA with OTF and sensor control from HAL was enabled,
-	 * try to collect all of sensor control value from 3AA qbuf
-	 */
-	if (device->ischain &&
-			module_ctl->valid_sensor_ctrl == true &&
-			test_bit(FIMC_IS_GROUP_OTF_INPUT,
-				&device->ischain->group_3aa.state)) {
+	sensitivity = sensor_uctrl->sensitivity;
+	exposureTime = sensor_uctrl->exposureTime;
 
-		ulong flag = 0;
-		struct fimc_is_framemgr *framemgr;
-		struct fimc_is_frame *frame, *temp;
+	if (module_ctl->valid_sensor_ctrl == true) {
+		if (sensor_ctrl->sensitivity)
+			sensitivity = sensor_ctrl->sensitivity;
 
-		framemgr = GET_FRAMEMGR(device->ischain->group_3aa.leader.vctx);
-
-		if (!framemgr) {
-			merr("OTF group's framemgr was NULL..", device);
-			goto p_err;
-		}
-
-		framemgr_e_barrier_irqs(framemgr, 0, flag);
-
-		/* 1. first collection from processing frame queue */
-		list_for_each_entry_safe(frame, temp, &framemgr->queued_list[FS_PROCESS], list) {
-			sensitivity[collect_index] = frame->shot->ctl.sensor.sensitivity;
-			exposureTime[collect_index] = frame->shot->ctl.sensor.exposureTime;
-
-			dbg("PRO [I%d] %d, %lld", frame->index,
-					frame->shot->ctl.sensor.sensitivity,
-					frame->shot->ctl.sensor.exposureTime);
-			collect_index++;
-		}
-
-		/* 2. second collection from request frame queue */
-		list_for_each_entry_safe(frame, temp, &framemgr->queued_list[FS_REQUEST], list) {
-			sensitivity[collect_index] = frame->shot->ctl.sensor.sensitivity;
-			exposureTime[collect_index] = frame->shot->ctl.sensor.exposureTime;
-
-			dbg("REQ [I%d] %d, %lld", frame->index,
-					frame->shot->ctl.sensor.sensitivity,
-					frame->shot->ctl.sensor.exposureTime);
-			collect_index++;
-		}
-
-		framemgr_x_barrier_irqr(framemgr, 0, flag);
-	} else {
-		u32 t_sensitivity;
-		u64 t_exposureTime;
-
-		sensor_ctrl = &module_ctl->cur_cam20_sensor_ctrl;
-		sensor_uctrl = &module_ctl->cur_cam20_sensor_udctrl;
-
-		t_sensitivity = sensor_uctrl->sensitivity;
-		t_exposureTime = sensor_uctrl->exposureTime;
-
-		/* valid_sensor_ctrl condition : if AEMODE is off */
-		if (module_ctl->valid_sensor_ctrl == true) {
-			if (sensor_ctrl->sensitivity)
-				t_sensitivity = sensor_ctrl->sensitivity;
-
-			if (sensor_ctrl->exposureTime)
-				t_exposureTime = sensor_ctrl->exposureTime;
-		}
-
-		for (collect_index = 0; collect_index < EXPECT_DM_NUM; collect_index++) {
-			sensitivity[collect_index] = t_sensitivity;
-			exposureTime[collect_index] = t_exposureTime;
-		}
+		if (sensor_ctrl->exposureTime)
+			exposureTime = sensor_ctrl->exposureTime;
 	}
 
-	if (!collect_index) {
-		merr("collect_index was 0..", device);
-		goto p_err;
-	}
-
-	/* initialize sensor control value from sensitivity/exposureTime set */
-	for (i = m_fcount + 2, j = 0; i < m_fcount + EXPECT_DM_NUM; i++, j++) {
-		expect_index = i % EXPECT_DM_NUM;
-		j = (j >= collect_index) ? j - 1 : j;
-
-		cis->expecting_sensor_dm[expect_index].sensitivity = sensitivity[j];
-		cis->expecting_sensor_dm[expect_index].exposureTime = exposureTime[j];
-
-		dbg("[F%d] %s [%d/%lld]", i, __func__,
-				cis->expecting_sensor_dm[expect_index].sensitivity,
-				cis->expecting_sensor_dm[expect_index].exposureTime);
+	for (i = m_fcount + 2; i < m_fcount + EXPECT_DM_NUM; i++) {
+		cis->expecting_sensor_dm[i % EXPECT_DM_NUM].sensitivity = sensitivity;
+		cis->expecting_sensor_dm[i % EXPECT_DM_NUM].exposureTime = exposureTime;
 	}
 
 p_err:

@@ -27,7 +27,11 @@
 #include <linux/uaccess.h>
 #include <linux/wakelock.h>
 #include <linux/regulator/consumer.h>
-#include <linux/power_supply.h>
+
+/* for muic notifier */
+#include <linux/muic/muic.h>
+#include <linux/muic/muic_notifier.h>
+
 #include <linux/sensor/sensors_core.h>
 #include "sx9306_reg.h"
 
@@ -36,6 +40,7 @@
 #define MODULE_NAME              "grip_sensor"
 
 #define I2C_M_WR                 0 /* for i2c Write */
+#define I2c_M_RD                 1 /* for i2c Read */
 
 #define IDLE                     0
 #define ACTIVE                   1
@@ -44,9 +49,9 @@
 #define SX9306_MODE_NORMAL       1
 
 #define CSX_STATUS_REG           SX9306_TCHCMPSTAT_TCHSTAT0_FLAG
-#define RAW_DATA_BLOCK_SIZE      (SX9306_REGOFFSETLSB - SX9306_REGUSEMSB + 1)
-
-#define DEFAULT_NORMAL_TOUCH_THRESHOLD  17
+#define RAW_DATA_BLOCK_SIZE	(SX9306_REGOFFSETLSB - SX9306_REGUSEMSB + 1)
+#define DEFAULT_NORMAL_TH        17
+#define MUIC_NORMAL_TH           21
 
 #define DIFF_READ_NUM            10
 #define GRIP_LOG_TIME            30 /* sec */
@@ -63,8 +68,10 @@ struct sx9306_p {
 	struct delayed_work debug_work;
 	struct wake_lock grip_wake_lock;
 	struct mutex read_mutex;
+	struct notifier_block muic_nb;
+
 	bool skip_data;
-	bool check_usb;
+	bool init_done;
 	u8 channel_main;
 	u8 channel_sub1;
 	u8 enable_csx;
@@ -83,26 +90,58 @@ struct sx9306_p {
 	u16 offset;
 	u16 freq;
 	atomic_t enable;
+
+#ifdef CONFIG_SENSORS_GRIP_CHK_HALLIC
+	u8 hall_flag;
+	unsigned char hall_ic[5];
+#endif
 };
 
 
-static int check_ta_state(void)
-{
-	static struct power_supply *psy;
-	union power_supply_propval ret = {0, };
+#ifdef CONFIG_SENSORS_GRIP_CHK_HALLIC
+#define HALLIC_PATH		"/sys/class/sec/sec_key/hall_detect"
 
-	if (psy == NULL) {
-		psy = power_supply_get_by_name("battery");
-		if (psy == NULL) {
-			SENSOR_ERR("failed to get ps battery\n");
-			return -EINVAL;
-		}
+static int sx9306_check_hallic_state(char *file_path, unsigned char hall_ic_status[])
+{
+	int iRet = 0;
+	mm_segment_t old_fs;
+	struct file *filep;
+	u8 hall_sysfs[5];
+
+	memset(hall_sysfs,0, sizeof(hall_sysfs));
+
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+
+	filep = filp_open(file_path, O_RDONLY, 0);
+	if (IS_ERR(filep)) {
+		iRet = PTR_ERR(filep);
+		if (iRet != -ENOENT)
+			SENSOR_ERR("file open fail [%s] - %d\n",
+				file_path, iRet);
+		set_fs(old_fs);
+		goto exit;
 	}
 
-	psy->get_property(psy, POWER_SUPPLY_PROP_ONLINE, &ret);
+	iRet = filep->f_op->read(filep, (char *)&hall_sysfs,
+		sizeof(hall_sysfs), &filep->f_pos);
 
-	return ret.intval;
+	if (!iRet) {
+		SENSOR_ERR("read fail: iRet(%d), size(%d), hall= %s\n",
+			iRet, (int)sizeof(hall_sysfs), hall_sysfs);
+
+		iRet = -EIO;
+	} else {
+		strncpy(hall_ic_status, hall_sysfs, sizeof(hall_sysfs));
+	}
+
+	filp_close(filep, current->files);
+	set_fs(old_fs);
+
+	exit:
+	return iRet;
 }
+#endif
 
 static int sx9306_get_nirq_state(struct sx9306_p *data)
 {
@@ -199,6 +238,7 @@ static void sx9306_initialize_register(struct sx9306_p *data)
 		SENSOR_INFO("Read Reg: 0x%x Value: 0x%x\n\n",
 			setup_reg[idx].reg, val);
 	}
+	data->init_done = ON;
 }
 
 static void sx9306_initialize_chip(struct sx9306_p *data)
@@ -221,13 +261,14 @@ static int sx9306_set_offset_calibration(struct sx9306_p *data)
 	int ret = 0;
 
 	ret = sx9306_i2c_write(data, SX9306_IRQSTAT_REG, 0xFF);
+	SENSOR_INFO("done\n");
 
 	return ret;
 }
 
 static void send_event(struct sx9306_p *data, u8 state)
 {
-	data->normal_th = data->normal_th_buf;
+	SENSOR_INFO("THD = %d\n", data->normal_th);
 
 	if (state == ACTIVE) {
 		data->state = ACTIVE;
@@ -266,7 +307,7 @@ static void sx9306_get_data(struct sx9306_p *data)
 	u8 ms_byte = 0;
 	u8 ls_byte = 0;
 	u8 buf[RAW_DATA_BLOCK_SIZE];
-	s32 gain = 1 << ((setup_reg[3].val >> 5) & 0x03);
+	s32 gain = 1 << ((setup_reg[SX9306_CTRL2_IDX].val >> 5) & 0x03);
 
 	mutex_lock(&data->read_mutex);
 	sx9306_i2c_write(data, SX9306_REGSENSORSELECT, data->channel_main);
@@ -297,10 +338,10 @@ static int sx9306_set_mode(struct sx9306_p *data, unsigned char mode)
 
 	if (mode == SX9306_MODE_SLEEP) {
 		ret = sx9306_i2c_write(data, SX9306_CPS_CTRL0_REG,
-			setup_reg[1].val);
+			setup_reg[SX9306_CTRL0_IDX].val);
 	} else if (mode == SX9306_MODE_NORMAL) {
 		ret = sx9306_i2c_write(data, SX9306_CPS_CTRL0_REG,
-			setup_reg[1].val | data->enable_csx);
+			setup_reg[SX9306_CTRL0_IDX].val | data->enable_csx);
 		msleep(20);
 
 		sx9306_set_offset_calibration(data);
@@ -356,7 +397,6 @@ static void sx9306_set_debug_work(struct sx9306_p *data, u8 enable)
 {
 	if (enable == ON) {
 		data->debug_count = 0;
-		data->check_usb = false;
 		schedule_delayed_work(&data->debug_work,
 			msecs_to_jiffies(1000));
 	} else {
@@ -452,7 +492,7 @@ static ssize_t sx9306_sw_reset_show(struct device *dev,
 static ssize_t sx9306_freq_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
-	u8 reg = setup_reg[3].val & 0xE7;
+	u8 reg = setup_reg[SX9306_CTRL2_IDX].val & 0xE7;
 	unsigned long val;
 	struct sx9306_p *data = dev_get_drvdata(dev);
 
@@ -546,7 +586,7 @@ static ssize_t sx9306_normal_threshold_show(struct device *dev,
 	thresh_temp = thresh_table[thresh_temp];
 
 	/* CTRL7 */
-	hysteresis = (setup_reg[8].val >> 4) & 0x3;
+	hysteresis = (setup_reg[SX9306_CTRL7_IDX].val >> 4) & 0x3;
 
 	switch (hysteresis) {
 	case 0x00:
@@ -640,7 +680,7 @@ static ssize_t sx9306_gain_show(struct device *dev,
 {
 	int ret;
 
-	switch ((setup_reg[3].val >> 5) & 0x03) {
+	switch ((setup_reg[SX9306_CTRL2_IDX].val >> 5) & 0x03) {
 	case 0x00:
 		ret = snprintf(buf, PAGE_SIZE, "x1\n");
 		break;
@@ -663,7 +703,7 @@ static ssize_t sx9306_range_show(struct device *dev,
 {
 	int ret;
 
-	switch (setup_reg[2].val & 0x03) {
+	switch (setup_reg[SX9306_CTRL1_IDX].val & 0x03) {
 	case 0x00:
 		ret = snprintf(buf, PAGE_SIZE, "Large\n");
 		break;
@@ -860,6 +900,8 @@ static void sx9306_init_work_func(struct work_struct *work)
 
 	/* disabling IRQ */
 	sx9306_i2c_write(data, SX9306_IRQ_ENABLE_REG, 0x00);
+
+	sx9306_set_debug_work(data, ON);
 }
 
 static void sx9306_irq_work_func(struct work_struct *work)
@@ -884,13 +926,19 @@ static void sx9306_debug_work_func(struct work_struct *work)
 		}
 	}
 
-	if (check_ta_state() > 1) {
-		data->check_usb = true;
-	} else if (data->check_usb == true) {
-		data->check_usb = false;
-		sx9306_set_offset_calibration(data);
-		SENSOR_INFO("TA is removed\n");
+#ifdef CONFIG_SENSORS_GRIP_CHK_HALLIC
+	sx9306_check_hallic_state(HALLIC_PATH, data->hall_ic);
+	
+	if (strcmp(data->hall_ic, "CLOSE") == 0) {
+		if (data->hall_flag == 0) {
+			SENSOR_INFO("Hall IC is closed\n");
+			sx9306_set_offset_calibration(data);
+			data->hall_flag = 1;
+		}
 	}
+	else
+		data->hall_flag = 0;
+#endif
 
 	schedule_delayed_work(&data->debug_work, msecs_to_jiffies(1000));
 }
@@ -977,11 +1025,22 @@ static void sx9306_initialize_variable(struct sx9306_p *data)
 {
 	data->state = IDLE;
 	data->skip_data = false;
-	data->check_usb = false;
-	data->freq = (setup_reg[3].val >> 3) & 0x03;
+	data->init_done = OFF;
+	data->freq = (setup_reg[SX9306_CTRL2_IDX].val >> 3) & 0x03;
 	data->debug_count = 0;
 	atomic_set(&data->enable, OFF);
 	data->normal_th_buf = data->normal_th;
+}
+
+static void sx9306_read_setupreg(struct device_node *dnode, char *str, u8 *val)
+{
+	u32 temp_val;
+	int ret;
+	ret = of_property_read_u32(dnode, str, &temp_val);
+	if (!ret) {
+		*val = (u8)temp_val;
+		SENSOR_INFO("Read from DT [%s][%02x]\n", str, temp_val);
+	}
 }
 
 static int sx9306_parse_dt(struct sx9306_p *data, struct device *dev)
@@ -1001,13 +1060,25 @@ static int sx9306_parse_dt(struct sx9306_p *data, struct device *dev)
 		return -ENODEV;
 	}
 
+	sx9306_read_setupreg(node, "sx9306-i2c,ctrl0", &setup_reg[SX9306_CTRL0_IDX].val);
+	sx9306_read_setupreg(node, "sx9306-i2c,ctrl1", &setup_reg[SX9306_CTRL1_IDX].val);
+	sx9306_read_setupreg(node, "sx9306-i2c,ctrl2", &setup_reg[SX9306_CTRL2_IDX].val);
+	sx9306_read_setupreg(node, "sx9306-i2c,ctrl3", &setup_reg[SX9306_CTRL3_IDX].val);
+	sx9306_read_setupreg(node, "sx9306-i2c,ctrl4", &setup_reg[SX9306_CTRL4_IDX].val);
+	sx9306_read_setupreg(node, "sx9306-i2c,ctrl5", &setup_reg[SX9306_CTRL5_IDX].val);
+	sx9306_read_setupreg(node, "sx9306-i2c,ctrl6", &setup_reg[SX9306_CTRL6_IDX].val);
+	sx9306_read_setupreg(node, "sx9306-i2c,ctrl7", &setup_reg[SX9306_CTRL7_IDX].val);
+	sx9306_read_setupreg(node, "sx9306-i2c,ctrl8", &setup_reg[SX9306_CTRL8_IDX].val);
+	sx9306_read_setupreg(node, "sx9306-i2c,ctrl9", &setup_reg[SX9306_CTRL9_IDX].val);
+	sx9306_read_setupreg(node, "sx9306-i2c,ctrl10", &setup_reg[SX9306_CTRL10_IDX].val);
+
 	ret = of_property_read_u32(node, "sx9306-i2c,normal-thd",
 					&temp_val);
 	if (!ret) {
 		data->normal_th = (u8)temp_val;
 	} else {
 		SENSOR_ERR("failed to get thd from dt. set as default.\n");
-		data->normal_th = DEFAULT_NORMAL_TOUCH_THRESHOLD;
+		data->normal_th = DEFAULT_NORMAL_TH;
 	}
 
 	ret = of_property_read_u32(node, "sx9306-i2c,ch-main",
@@ -1032,6 +1103,37 @@ static int sx9306_parse_dt(struct sx9306_p *data, struct device *dev)
 		data->normal_th, data->channel_main, data->channel_sub1);
 
 	return 0;
+}
+
+static int sx9306_muic_notifier(struct notifier_block *nb,
+				unsigned long action, void *data)
+{
+	struct sx9306_p *pdata = container_of(nb, struct sx9306_p, muic_nb);
+	muic_attached_dev_t attached_dev = *(muic_attached_dev_t *)data;
+
+	switch (attached_dev) {
+		case ATTACHED_DEV_OTG_MUIC:
+		case ATTACHED_DEV_USB_MUIC:
+		case ATTACHED_DEV_TA_MUIC:
+		case ATTACHED_DEV_AFC_CHARGER_PREPARE_MUIC:
+		case ATTACHED_DEV_AFC_CHARGER_9V_MUIC:
+			if (action == MUIC_NOTIFY_CMD_ATTACH)
+				SENSOR_INFO("TA/USB is inserted\n");
+			else
+				SENSOR_INFO("TA/USB is removed\n");
+	
+			if (pdata->init_done == ON)
+				sx9306_set_offset_calibration(pdata);
+			else
+				SENSOR_INFO("not initialized\n");
+			break;
+		default:
+			break;
+		}
+	
+	SENSOR_INFO("dev=%d, action=%lu\n", attached_dev, action);
+
+	return NOTIFY_DONE;
 }
 
 #if defined(CONFIG_SENSORS_SX9306_REGULATOR_ONOFF)
@@ -1154,7 +1256,6 @@ static int sx9306_probe(struct i2c_client *client,
 		goto exit_request_threaded_irq;
 	}
 	disable_irq(data->irq);
-	schedule_delayed_work(&data->init_work, msecs_to_jiffies(300));
 
 	ret = sx9306_input_init(data);
 	if (ret < 0)
@@ -1166,6 +1267,10 @@ static int sx9306_probe(struct i2c_client *client,
 		SENSOR_ERR("cound not register grip_sensor(%d)\n", ret);
 		goto exit_grip_sensor_register;
 	}
+
+	muic_notifier_register(&data->muic_nb, sx9306_muic_notifier, MUIC_NOTIFY_DEV_CPUIDLE);
+
+	schedule_delayed_work(&data->init_work, msecs_to_jiffies(300));
 
 	SENSOR_INFO("done\n");
 

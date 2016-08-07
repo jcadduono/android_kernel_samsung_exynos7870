@@ -1081,6 +1081,16 @@ void exynos7_init_bts_ioremap(void)
 	base_bts_pmu_alive = ioremap(EXYNOS7870_PA_PMU_ALIVE, SZ_4K);
 }
 
+int wincnt;
+int exynos_update_overlay_wincnt(int cnt)
+{
+	BTS_DBG("[BTS CNT] overlay window count: %d\n", cnt);
+
+	wincnt = cnt;
+
+	return 0;
+}
+
 void exynos_update_media_scenario(enum bts_media_type media_type,
 		unsigned int bw, int bw_type)
 {
@@ -1111,6 +1121,8 @@ void exynos_update_media_scenario(enum bts_media_type media_type,
 		if (decon_bw <= (2 * FHD_BW))
 			mif_freq = 451000;
 		else
+			mif_freq = 676000;
+		if (wincnt == 3 && decon_bw <= (2 *FHD_BW))
 			mif_freq = 546000;
 	}
 

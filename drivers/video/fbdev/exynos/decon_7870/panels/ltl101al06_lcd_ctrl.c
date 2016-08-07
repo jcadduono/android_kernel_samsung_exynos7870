@@ -201,6 +201,241 @@ static const struct backlight_ops panel_backlight_ops = {
 	.update_status = panel_set_brightness,
 };
 
+
+static int ltl101al06_exit(struct dsim_device *dsim)
+{
+	int ret = 0;
+	struct lcd_info *lcd = dsim->priv.par;
+
+	dev_info(&lcd->ld->dev, "%s\n", __func__);
+
+	pwm_disable(lcd->pwm);
+	pwm_pinctrl_enable(lcd, 0);
+
+	return ret;
+}
+
+static int ltl101al06_displayon(struct dsim_device *dsim)
+{
+	int ret = 0;
+	struct lcd_info *lcd = dsim->priv.par;
+
+	dev_info(&lcd->ld->dev, "%s\n", __func__);
+	/*Before pwm_enable, pwm_config should be called*/
+	dsim_panel_set_brightness(dsim, 1);
+	pwm_enable(lcd->pwm);
+	msleep(200);
+	pwm_pinctrl_enable(lcd, 1);
+
+	return ret;
+}
+
+static int ltl101al06_init(struct dsim_device *dsim)
+{
+	int ret = 0;
+	struct lcd_info *lcd = dsim->priv.par;
+
+	dev_info(&lcd->ld->dev, "%s\n", __func__);
+
+//	msleep(300); //?? internal PLL boosting time...
+
+	ret = gpio_request_one(panel_power_gpio, GPIOF_OUT_INIT_HIGH, "BLIC_ON");
+	gpio_free(panel_power_gpio);
+
+	//TC358764_65XBG_Tv12p_ParameterSetting_SS_1280x800_noMSF_SEC_151211.xls
+
+	//TC358764/65XBG DSI Basic Parameters.  Following 10 setting should be pefromed in LP mode
+	tc358764_array_write(0x013C,	0x00050006);
+	tc358764_array_write(0x0114,	0x00000004);
+	tc358764_array_write(0x0164,	0x00000004);
+	tc358764_array_write(0x0168,	0x00000004);
+	tc358764_array_write(0x016C,	0x00000004);
+	tc358764_array_write(0x0170,	0x00000004);
+	tc358764_array_write(0x0134,	0x0000001F);
+	tc358764_array_write(0x0210,	0x0000001F);
+	tc358764_array_write(0x0104,	0x00000001);
+	tc358764_array_write(0x0204,	0x00000001);
+
+	//TC358764/65XBG Timing and mode setting (LP or HS)
+	tc358764_array_write(0x0450,	0x03F00120);
+	tc358764_array_write(0x0454,    0x00580032);
+	tc358764_array_write(0x0458,    0x00590500);
+	tc358764_array_write(0x045C,	0x00420006);
+	tc358764_array_write(0x0460,	0x00440320);
+	tc358764_array_write(0x0464,	0x00000001);
+	tc358764_array_write(0x04A0,	0x00448006);
+	usleep_range(1000, 1100); 	//More than 100us
+	tc358764_array_write(0x04A0,	0x00048006);
+	tc358764_array_write(0x0504,	0x00000004);
+
+	//TC358764/65XBG LVDS Color mapping setting (LP or HS)
+	tc358764_array_write(0x0480,	0x03020100);
+	tc358764_array_write(0x0484,	0x08050704);
+	tc358764_array_write(0x0488,	0x0F0E0A09);
+	tc358764_array_write(0x048C,	0x100D0C0B);
+	tc358764_array_write(0x0490,	0x12111716);
+	tc358764_array_write(0x0494,	0x1B151413);
+	tc358764_array_write(0x0498,	0x061A1918);
+
+	//TC358764/65XBG LVDS enable (LP or HS)
+	tc358764_array_write(0x049C,	0x00000001);
+
+	return ret;
+}
+
+static int tc358764_probe(struct i2c_client *client,
+	const struct i2c_device_id *id)
+{
+	int ret = 0;
+
+	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
+		pr_err("%s : fail.\n", __func__);
+		ret = -ENODEV;
+		goto err_i2c;
+	}
+
+	tc358764_client = client;
+	panel_power_gpio = of_get_gpio(client->dev.of_node, 0);
+	panel_pwm_gpio = of_get_gpio(client->dev.of_node, 1);
+
+err_i2c:
+	return ret;
+}
+
+static struct i2c_device_id tc358764_id[] = {
+	{"tc358764", 0},
+	{},
+};
+
+MODULE_DEVICE_TABLE(i2c, tc358764_id);
+
+static struct of_device_id tc358764_i2c_dt_ids[] = {
+	{ .compatible = "tc358764,i2c" },
+	{ }
+};
+
+MODULE_DEVICE_TABLE(of, tc358764_i2c_dt_ids);
+
+static struct i2c_driver tc358764_i2c_driver = {
+	.driver = {
+		.owner	= THIS_MODULE,
+		.name	= "tc358764",
+		.of_match_table	= of_match_ptr(tc358764_i2c_dt_ids),
+	},
+	.id_table = tc358764_id,
+	.probe = tc358764_probe,
+};
+
+static int pwm_probe(struct dsim_device *dsim, struct device_node *parent)
+{
+	struct device_node *np = NULL;
+	struct lcd_info *lcd = dsim->priv.par;
+	u32 pwm_id = -1;
+	int ret = 0;
+
+	np = of_parse_phandle(parent, "pwm_info", 0);
+
+	if (!np) {
+		pr_err("%s: %s node does not exist!!!\n", __func__, "pwm_info");
+		ret = -ENODEV;
+	}
+
+	of_property_read_u32(np, "pwm_id", &pwm_id);
+	of_property_read_u32(np, "duty_period", &lcd->pwm_period);
+	of_property_read_u32(np, "duty_min", &lcd->pwm_min);
+	of_property_read_u32(np, "duty_max", &lcd->pwm_max);
+	of_property_read_u32(np, "duty_outdoor", &lcd->pwm_outdoor);
+
+	dsim_info("%s id: %d duty_period: %d duty_min: %d max: %d outdoor: %d\n",
+		__func__, pwm_id, lcd->pwm_period, lcd->pwm_min, lcd->pwm_max, lcd->pwm_outdoor);
+
+	lcd->pwm = pwm_request(pwm_id, "lcd_pwm");
+	if (IS_ERR(lcd->pwm)) {
+		dsim_err(":%s error : setting fail : %d\n", __func__, ret);
+		ret = -EFAULT;
+	}
+
+	/*Before pwm_enable, pwm_config should be called*/
+	dsim_panel_set_brightness(dsim, 1);
+	pwm_enable(lcd->pwm);
+
+	return 0;
+}
+
+static int ltl101al06_probe(struct dsim_device *dsim)
+{
+	int ret = 0;
+	struct panel_private *priv = &dsim->priv;
+	struct lcd_info *lcd = dsim->priv.par;
+	struct device_node *np;
+	struct platform_device *pdev;
+
+	pr_info("%s: was called\n", __func__);
+
+	if (lcdtype == 0) {
+		priv->lcdConnected = PANEL_DISCONNEDTED;
+		dsim_err("dsim : %s lcd was not connected\n", __func__);
+		goto exit;
+	} else
+		priv->lcdConnected = PANEL_CONNECTED;
+
+	lcd->bd->props.max_brightness = UI_MAX_BRIGHTNESS;
+	lcd->bd->props.brightness = UI_DEFAULT_BRIGHTNESS;
+
+	lcd->temperature = NORMAL_TEMPERATURE;
+	lcd->acl_enable = 0;
+	lcd->current_acl = 0;
+	lcd->auto_brightness = 0;
+	lcd->siop_enable = 0;
+	lcd->current_hbm = 0;
+
+	np = of_find_node_with_property(NULL, "lcd_info");
+	np = of_parse_phandle(np, "lcd_info", 0);
+	pdev = of_platform_device_create(np, NULL, dsim->dev);
+
+	lcd->pins_pwm = devm_pinctrl_get(&pdev->dev);
+	if (IS_ERR(lcd->pins_pwm)) {
+		pr_err("%s: devm_pinctrl_get fail\n", __func__);
+		goto exit;
+	}
+
+	lcd->pins_state_pwm[0] = pinctrl_lookup_state(lcd->pins_pwm, "pwm_off");
+	lcd->pins_state_pwm[1] = pinctrl_lookup_state(lcd->pins_pwm, "pwm_on");
+	if (IS_ERR_OR_NULL(lcd->pins_state_pwm[0]) || IS_ERR_OR_NULL(lcd->pins_state_pwm[1])) {
+		pr_err("%s: pinctrl_lookup_state fail\n", __func__);
+		goto exit;
+	}
+
+	lcd->pins_pwm = devm_pinctrl_get(&pdev->dev);
+	if (IS_ERR(lcd->pins_pwm)) {
+		pr_err("%s: devm_pinctrl_get fail\n", __func__);
+		goto exit;
+	}
+
+	ret = i2c_add_driver(&tc358764_i2c_driver);
+	if (ret) {
+		pr_err("%s : add_i2c_driver fail.\n", __func__);
+		goto exit;
+	}
+
+	ret = pwm_probe(dsim, np);
+	if (ret) {
+		pr_err("%s : add_PWM_driver fail.\n", __func__);
+		goto exit;
+	}
+	dev_info(&lcd->ld->dev, "%s: done\n", __func__);
+exit:
+	return ret;
+}
+
+struct dsim_panel_ops ltl101al06_panel_ops = {
+	.probe		= ltl101al06_probe,
+	.displayon	= ltl101al06_displayon,
+	.exit		= ltl101al06_exit,
+	.init		= ltl101al06_init,
+};
+
+
 static ssize_t lcd_type_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -571,235 +806,3 @@ struct mipi_dsim_lcd_driver ltl101al06_mipi_lcd_driver = {
 	.suspend	= dsim_panel_suspend,
 };
 
-static int ltl101al06_exit(struct dsim_device *dsim)
-{
-	int ret = 0;
-	struct lcd_info *lcd = dsim->priv.par;
-
-	dev_info(&lcd->ld->dev, "%s\n", __func__);
-
-	pwm_disable(lcd->pwm);
-	pwm_pinctrl_enable(lcd, 0);
-
-	return ret;
-}
-
-static int ltl101al06_displayon(struct dsim_device *dsim)
-{
-	int ret = 0;
-	struct lcd_info *lcd = dsim->priv.par;
-
-	dev_info(&lcd->ld->dev, "%s\n", __func__);
-	/*Before pwm_enable, pwm_config should be called*/
-	dsim_panel_set_brightness(dsim, 1);
-	pwm_enable(lcd->pwm);
-	msleep(200);
-	pwm_pinctrl_enable(lcd, 1);
-
-	return ret;
-}
-
-static int ltl101al06_init(struct dsim_device *dsim)
-{
-	int ret = 0;
-	struct lcd_info *lcd = dsim->priv.par;
-
-	dev_info(&lcd->ld->dev, "%s\n", __func__);
-
-//	msleep(300); //?? internal PLL boosting time...
-
-	ret = gpio_request_one(panel_power_gpio, GPIOF_OUT_INIT_HIGH, "BLIC_ON");
-	gpio_free(panel_power_gpio);
-
-	//TC358764_65XBG_Tv12p_ParameterSetting_SS_1280x800_noMSF_SEC_151211.xls
-
-	//TC358764/65XBG DSI Basic Parameters.  Following 10 setting should be pefromed in LP mode
-	tc358764_array_write(0x013C,	0x00050006);
-	tc358764_array_write(0x0114,	0x00000004);
-	tc358764_array_write(0x0164,	0x00000004);
-	tc358764_array_write(0x0168,	0x00000004);
-	tc358764_array_write(0x016C,	0x00000004);
-	tc358764_array_write(0x0170,	0x00000004);
-	tc358764_array_write(0x0134,	0x0000001F);
-	tc358764_array_write(0x0210,	0x0000001F);
-	tc358764_array_write(0x0104,	0x00000001);
-	tc358764_array_write(0x0204,	0x00000001);
-
-	//TC358764/65XBG Timing and mode setting (LP or HS)
-	tc358764_array_write(0x0450,	0x03F00120);
-	tc358764_array_write(0x0454,	0x00340032);
-	tc358764_array_write(0x0458,	0x00340500);
-	tc358764_array_write(0x045C,	0x00420006);
-	tc358764_array_write(0x0460,	0x00440320);
-	tc358764_array_write(0x0464,	0x00000001);
-	tc358764_array_write(0x04A0,	0x00448006);
-	usleep_range(1000, 1100); 	//More than 100us
-	tc358764_array_write(0x04A0,	0x00048006);
-	tc358764_array_write(0x0504,	0x00000004);
-
-	//TC358764/65XBG LVDS Color mapping setting (LP or HS)
-	tc358764_array_write(0x0480,	0x03020100);
-	tc358764_array_write(0x0484,	0x08050704);
-	tc358764_array_write(0x0488,	0x0F0E0A09);
-	tc358764_array_write(0x048C,	0x100D0C0B);
-	tc358764_array_write(0x0490,	0x12111716);
-	tc358764_array_write(0x0494,	0x1B151413);
-	tc358764_array_write(0x0498,	0x061A1918);
-
-	//TC358764/65XBG LVDS enable (LP or HS)
-	tc358764_array_write(0x049C,	0x00000001);
-
-	return ret;
-}
-
-static int tc358764_probe(struct i2c_client *client,
-	const struct i2c_device_id *id)
-{
-	int ret = 0;
-
-	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
-		pr_err("%s : fail.\n", __func__);
-		ret = -ENODEV;
-		goto err_i2c;
-	}
-
-	tc358764_client = client;
-	panel_power_gpio = of_get_gpio(client->dev.of_node, 0);
-	panel_pwm_gpio = of_get_gpio(client->dev.of_node, 1);
-
-err_i2c:
-	return ret;
-}
-
-static struct i2c_device_id tc358764_id[] = {
-	{"tc358764", 0},
-	{},
-};
-
-MODULE_DEVICE_TABLE(i2c, tc358764_id);
-
-static struct of_device_id tc358764_i2c_dt_ids[] = {
-	{ .compatible = "tc358764,i2c" },
-	{ }
-};
-
-MODULE_DEVICE_TABLE(of, tc358764_i2c_dt_ids);
-
-static struct i2c_driver tc358764_i2c_driver = {
-	.driver = {
-		.owner	= THIS_MODULE,
-		.name	= "tc358764",
-		.of_match_table	= of_match_ptr(tc358764_i2c_dt_ids),
-	},
-	.id_table = tc358764_id,
-	.probe = tc358764_probe,
-};
-
-static int pwm_probe(struct dsim_device *dsim, struct device_node *parent)
-{
-	struct device_node *np = NULL;
-	struct lcd_info *lcd = dsim->priv.par;
-	u32 pwm_id = -1;
-	int ret = 0;
-
-	np = of_parse_phandle(parent, "pwm_info", 0);
-
-	if (!np) {
-		pr_err("%s: %s node does not exist!!!\n", __func__, "pwm_info");
-		ret = -ENODEV;
-	}
-
-	of_property_read_u32(np, "pwm_id", &pwm_id);
-	of_property_read_u32(np, "duty_period", &lcd->pwm_period);
-	of_property_read_u32(np, "duty_min", &lcd->pwm_min);
-	of_property_read_u32(np, "duty_max", &lcd->pwm_max);
-	of_property_read_u32(np, "duty_outdoor", &lcd->pwm_outdoor);
-
-	dsim_info("%s id: %d duty_period: %d duty_min: %d max: %d outdoor: %d\n",
-		__func__, pwm_id, lcd->pwm_period, lcd->pwm_min, lcd->pwm_max, lcd->pwm_outdoor);
-
-	lcd->pwm = pwm_request(pwm_id, "lcd_pwm");
-	if (IS_ERR(lcd->pwm)) {
-		dsim_err(":%s error : setting fail : %d\n", __func__, ret);
-		ret = -EFAULT;
-	}
-
-	/*Before pwm_enable, pwm_config should be called*/
-	dsim_panel_set_brightness(dsim, 1);
-	pwm_enable(lcd->pwm);
-
-	return 0;
-}
-
-static int ltl101al06_probe(struct dsim_device *dsim)
-{
-	int ret = 0;
-	struct panel_private *priv = &dsim->priv;
-	struct lcd_info *lcd = dsim->priv.par;
-	struct device_node *np;
-	struct platform_device *pdev;
-
-	pr_info("%s: was called\n", __func__);
-
-	if (lcdtype == 0) {
-		priv->lcdConnected = PANEL_DISCONNEDTED;
-		dsim_err("dsim : %s lcd was not connected\n", __func__);
-		goto exit;
-	} else
-		priv->lcdConnected = PANEL_CONNECTED;
-
-	lcd->bd->props.max_brightness = UI_MAX_BRIGHTNESS;
-	lcd->bd->props.brightness = UI_DEFAULT_BRIGHTNESS;
-
-	lcd->temperature = NORMAL_TEMPERATURE;
-	lcd->acl_enable = 0;
-	lcd->current_acl = 0;
-	lcd->auto_brightness = 0;
-	lcd->siop_enable = 0;
-	lcd->current_hbm = 0;
-
-	np = of_find_node_with_property(NULL, "lcd_info");
-	np = of_parse_phandle(np, "lcd_info", 0);
-	pdev = of_platform_device_create(np, NULL, dsim->dev);
-
-	lcd->pins_pwm = devm_pinctrl_get(&pdev->dev);
-	if (IS_ERR(lcd->pins_pwm)) {
-		pr_err("%s: devm_pinctrl_get fail\n", __func__);
-		goto exit;
-	}
-
-	lcd->pins_state_pwm[0] = pinctrl_lookup_state(lcd->pins_pwm, "pwm_off");
-	lcd->pins_state_pwm[1] = pinctrl_lookup_state(lcd->pins_pwm, "pwm_on");
-	if (IS_ERR_OR_NULL(lcd->pins_state_pwm[0]) || IS_ERR_OR_NULL(lcd->pins_state_pwm[1])) {
-		pr_err("%s: pinctrl_lookup_state fail\n", __func__);
-		goto exit;
-	}
-
-	lcd->pins_pwm = devm_pinctrl_get(&pdev->dev);
-	if (IS_ERR(lcd->pins_pwm)) {
-		pr_err("%s: devm_pinctrl_get fail\n", __func__);
-		goto exit;
-	}
-
-	ret = i2c_add_driver(&tc358764_i2c_driver);
-	if (ret) {
-		pr_err("%s : add_i2c_driver fail.\n", __func__);
-		goto exit;
-	}
-
-	ret = pwm_probe(dsim, np);
-	if (ret) {
-		pr_err("%s : add_PWM_driver fail.\n", __func__);
-		goto exit;
-	}
-	dev_info(&lcd->ld->dev, "%s: done\n", __func__);
-exit:
-	return ret;
-}
-
-struct dsim_panel_ops ltl101al06_panel_ops = {
-	.probe		= ltl101al06_probe,
-	.displayon	= ltl101al06_displayon,
-	.exit		= ltl101al06_exit,
-	.init		= ltl101al06_init,
-};

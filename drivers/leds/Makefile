@@ -60,6 +60,9 @@ obj-$(CONFIG_LEDS_S2MU003)		+= leds-s2mu003.o
 obj-$(CONFIG_LEDS_S2MPB02)		+= leds-s2mpb02.o
 obj-$(CONFIG_LEDS_S2MU005_FLASH)	+= leds-s2mu005.o
 obj-$(CONFIG_LEDS_SM5705)		+= leds-sm5705.o
+obj-$(CONFIG_FLASHLIGHT)		+= flashlight.o
+obj-$(CONFIG_SM_FLASH_LED)		+= smfled.o
+obj-$(CONFIG_FLED_SM5703)		+= sm5703_fled.o
 
 # LED SPI Drivers
 obj-$(CONFIG_LEDS_DAC124S085)		+= leds-dac124s085.o

@@ -1850,7 +1850,7 @@ int fimc_is_itf_stream_on(struct fimc_is_device_ischain *device)
 			minfo("[ISC:D] tbl[%d] static scenario(%d)-[%s]\n", device,
 				dvfs_ctrl->dvfs_table_idx, scenario_id,
 				static_ctrl->scenarios[static_ctrl->cur_scenario_idx].scenario_nm);
-			fimc_is_set_dvfs(device, scenario_id);
+			fimc_is_set_dvfs((struct fimc_is_core *)device->interface->core, device, scenario_id);
 		}
 
 		mutex_unlock(&dvfs_ctrl->lock);
@@ -4243,6 +4243,14 @@ int fimc_is_ischain_isp_close(struct fimc_is_device_ischain *device,
 	if (test_bit(FIMC_IS_GROUP_START, &group->state)) {
 		mgwarn("sudden group close", device, group);
 		set_bit(FIMC_IS_GROUP_REQUEST_FSTOP, &group->state);
+
+		ret = fimc_is_ischain_3aa_stop(device, NULL);
+		if (ret)
+			merr("fimc_is_ischain_3aa_stop is fail", device);
+
+		ret = fimc_is_group_close(groupmgr, group->parent);
+		if (ret)
+			merr("fimc_is_group_close is fail", device);
 	}
 
 	ret = fimc_is_ischain_isp_stop(device, queue);

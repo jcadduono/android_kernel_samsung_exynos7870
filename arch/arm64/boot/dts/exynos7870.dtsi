@@ -366,8 +366,9 @@
 		reg = <0x0 0x13820000 0x100>;
 		samsung,fifo-size = <256>;
 		interrupts = <0 423 0>;
-		pinctrl-names = "default";
+		pinctrl-names = "default", "uart_sleep";
 		pinctrl-0 = <&uart2_bus>;
+		pinctrl-1 = <&uart2_sleep>;
 		clocks = <&clock 170>, <&clock 622>, <&clock 622>;
 		clock-names = "gate_pclk2", "gate_uart2", "sclk_uart2";
 		status = "disabled";

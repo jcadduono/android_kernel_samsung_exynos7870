@@ -1569,6 +1569,10 @@ p_err:
 	return ret;
 }
 
+#ifdef CONFIG_FLED_SM5703
+extern bool flash_control_ready;
+extern int sm5703_led_mode_ctrl(int state);
+#endif
 int fimc_is_group_close(struct fimc_is_groupmgr *groupmgr,
 	struct fimc_is_group *group)
 {
@@ -1581,6 +1585,13 @@ int fimc_is_group_close(struct fimc_is_groupmgr *groupmgr,
 	BUG_ON(!group);
 	BUG_ON(group->instance >= FIMC_IS_STREAM_COUNT);
 	BUG_ON(group->id >= GROUP_ID_MAX);
+
+#if defined(CONFIG_FLED_SM5703)
+	if (flash_control_ready == true) {
+		sm5703_led_mode_ctrl(4);
+		flash_control_ready = false;
+	}
+#endif
 
 	id = group->id;
 	slot = group->slot;
@@ -1908,13 +1919,14 @@ int fimc_is_group_stop(struct fimc_is_groupmgr *groupmgr,
 	int ret = 0;
 	int errcnt = 0;
 	int retry;
-	u32 rcount, pcount, entry;
+	u32 rcount, entry;
 	unsigned long flags;
 	struct fimc_is_framemgr *framemgr;
 	struct fimc_is_device_ischain *device;
 	struct fimc_is_device_sensor *sensor;
 	struct fimc_is_group *child;
 	struct fimc_is_subdev *subdev;
+	struct fimc_is_group_task *gtask;
 
 	BUG_ON(!groupmgr);
 	BUG_ON(!group);
@@ -1926,6 +1938,7 @@ int fimc_is_group_stop(struct fimc_is_groupmgr *groupmgr,
 	device = group->device;
 	sensor = device->sensor;
 	framemgr = GET_SUBDEV_FRAMEMGR(&group->leader);
+	gtask = &groupmgr->gtask[group->id];
 	if (!framemgr) {
 		mgerr("framemgr is NULL", group, group);
 		goto p_err;
@@ -1945,39 +1958,40 @@ int fimc_is_group_stop(struct fimc_is_groupmgr *groupmgr,
 	while (--retry && framemgr->queued_count[FS_REQUEST]) {
 		if (test_bit(FIMC_IS_GROUP_OTF_INPUT, &group->state) &&
 			!list_empty(&group->smp_trigger.wait_list)) {
-			pcount = group->pcount;
 
 			if (!sensor) {
-				mwarn(" sensor is NULL, forcely trigger(pc %d)", device, pcount);
+				mwarn(" sensor is NULL, forcely trigger(pc %d)", device, group->pcount);
 				set_bit(FIMC_IS_GROUP_FORCE_STOP, &group->state);
 				up(&group->smp_trigger);
 			} else if (!test_bit(FIMC_IS_SENSOR_OPEN, &sensor->state)) {
-				mwarn(" sensor is closed, forcely trigger(pc %d)", device, pcount);
+				mwarn(" sensor is closed, forcely trigger(pc %d)", device, group->pcount);
 				set_bit(FIMC_IS_GROUP_FORCE_STOP, &group->state);
 				up(&group->smp_trigger);
 			} else if (!test_bit(FIMC_IS_SENSOR_FRONT_START, &sensor->state)) {
-				mwarn(" front is stopped, forcely trigger(pc %d)", device, pcount);
+				mwarn(" front is stopped, forcely trigger(pc %d)", device, group->pcount);
 				set_bit(FIMC_IS_GROUP_FORCE_STOP, &group->state);
 				up(&group->smp_trigger);
 			} else if (!test_bit(FIMC_IS_SENSOR_BACK_START, &sensor->state)) {
-				mwarn(" back is stopped, forcely trigger(pc %d)", device, pcount);
+				mwarn(" back is stopped, forcely trigger(pc %d)", device, group->pcount);
 				set_bit(FIMC_IS_GROUP_FORCE_STOP, &group->state);
 				up(&group->smp_trigger);
 			} else if (retry < 100) {
-				merr(" sensor is working but no trigger(pc %d)", device, pcount);
+				merr(" sensor is working but no trigger(pc %d)", device, group->pcount);
 				set_bit(FIMC_IS_GROUP_FORCE_STOP, &group->state);
 				up(&group->smp_trigger);
 			} else {
-				mwarn(" wating for sensor trigger(pc %d)", device, pcount);
+				mwarn(" wating for sensor trigger(pc %d)", device, group->pcount);
 			}
 		}
 
-		mgwarn(" %d reqs waiting...", device, group, framemgr->queued_count[FS_REQUEST]);
+		mgwarn(" %d reqs waiting...(pc %d) smp_shot(%d) smp_resource(%d)", device, group,
+				framemgr->queued_count[FS_REQUEST], group->pcount,
+				list_empty(&group->smp_shot.wait_list), list_empty(&gtask->smp_resource.wait_list));
 		msleep(20);
 	}
 
 	if (!retry) {
-		mgerr(" waiting(until request empty) is fail", device, group);
+		mgerr(" waiting(until request empty) is fail(pc %d)", device, group, group->pcount);
 		errcnt++;
 	}
 
@@ -1987,12 +2001,12 @@ int fimc_is_group_stop(struct fimc_is_groupmgr *groupmgr,
 
 	retry = 150;
 	while (--retry && test_bit(FIMC_IS_GROUP_SHOT, &group->state)) {
-		mgwarn(" thread stop waiting...", device, group);
+		mgwarn(" thread stop waiting...(pc %d)", device, group, group->pcount);
 		msleep(20);
 	}
 
 	if (!retry) {
-		mgerr(" waiting(until thread stop) is fail", device, group);
+		mgerr(" waiting(until thread stop) is fail(pc %d)", device, group, group->pcount);
 		errcnt++;
 	}
 
@@ -2016,18 +2030,18 @@ int fimc_is_group_stop(struct fimc_is_groupmgr *groupmgr,
 
 	retry = 150;
 	while (--retry && framemgr->queued_count[FS_PROCESS]) {
-		mgwarn(" %d pros waiting...", device, group, framemgr->queued_count[FS_PROCESS]);
+		mgwarn(" %d pros waiting...(pc %d)", device, group, framemgr->queued_count[FS_PROCESS], group->pcount);
 		msleep(20);
 	}
 
 	if (!retry) {
-		mgerr(" waiting(until process empty) is fail", device, group);
+		mgerr(" waiting(until process empty) is fail(pc %d)", device, group, group->pcount);
 		errcnt++;
 	}
 
 	rcount = atomic_read(&group->rcount);
 	if (rcount) {
-		mgerr(" request is NOT empty(%d)", device, group, rcount);
+		mgerr(" request is NOT empty(%d) (pc %d)", device, group, rcount, group->pcount);
 		errcnt++;
 	}
 
@@ -2653,7 +2667,7 @@ p_skip_sync:
 				resourcemgr->dvfs_ctrl.dvfs_table_idx,
 				scenario_id,
 				dynamic_ctrl->scenarios[dynamic_ctrl->cur_scenario_idx].scenario_nm);
-			fimc_is_set_dvfs(device, scenario_id);
+			fimc_is_set_dvfs((struct fimc_is_core *)device->interface->core, device, scenario_id);
 		}
 
 		if ((scenario_id < 0) && (resourcemgr->dvfs_ctrl.dynamic_ctrl->cur_frame_tick == 0)) {
@@ -2662,7 +2676,7 @@ p_skip_sync:
 				resourcemgr->dvfs_ctrl.dvfs_table_idx,
 				static_ctrl->cur_scenario_id,
 				static_ctrl->scenarios[static_ctrl->cur_scenario_idx].scenario_nm);
-			fimc_is_set_dvfs(device, static_ctrl->cur_scenario_id);
+			fimc_is_set_dvfs((struct fimc_is_core *)device->interface->core, device, static_ctrl->cur_scenario_id);
 		}
 
 		mutex_unlock(&resourcemgr->dvfs_ctrl.lock);

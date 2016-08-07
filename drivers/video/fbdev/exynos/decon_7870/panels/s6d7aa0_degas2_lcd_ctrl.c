@@ -84,6 +84,8 @@ static int dsim_panel_set_brightness(struct dsim_device *dsim, int force)
 	bl_reg[0] = BRIGHTNESS_REG;
 	if (lcd->bl >= 3)
 		bl_reg[1] = lcd->bl ;
+	else if(lcd->bl >= 1)
+		bl_reg[1] = 0x03;
 	else
 		bl_reg[1] = 0x00;
 
@@ -138,13 +140,226 @@ static const struct backlight_ops panel_backlight_ops = {
 };
 
 
+static int s6d7aa0_read_init_info(struct dsim_device *dsim)
+{
+	int i = 0;
+	struct panel_private *panel = &dsim->priv;
+	struct lcd_info *lcd = dsim->priv.par;
+
+	dsim_info("MDD : %s was called\n", __func__);
+
+	if (lcdtype == 0) {
+		panel->lcdConnected = PANEL_DISCONNEDTED;
+		goto read_exit;
+	}
+
+	lcd->id[0] = (lcdtype & 0xFF0000) >> 16;
+	lcd->id[1] = (lcdtype & 0x00FF00) >> 8;
+	lcd->id[2] = (lcdtype & 0x0000FF) >> 0;
+
+	dsim_info("READ ID : ");
+	for (i = 0; i < S6D7AA0_ID_LEN; i++)
+		dsim_info("%02x, ", lcd->id[i]);
+	dsim_info("\n");
+
+read_exit:
+	return 0;
+
+}
+
+static int s6d7aa0_displayon(struct dsim_device *dsim)
+{
+	int ret = 0;
+	struct lcd_info *lcd = dsim->priv.par;
+
+	dev_info(&lcd->ld->dev, "%s\n", __func__);
+
+	ret = dsim_write_hl_data(dsim, SEQ_DISPLAY_ON, ARRAY_SIZE(SEQ_DISPLAY_ON));
+	if (ret < 0) {
+		dsim_err("%s : fail to write CMD : DISPLAY_ON\n", __func__);
+		goto displayon_err;
+	}
+
+	dsim_panel_set_brightness(dsim, 1);
+
+
+displayon_err:
+	return ret;
+
+}
+
+static int s6d7aa0_exit(struct dsim_device *dsim)
+{
+	int ret = 0;
+	struct lcd_info *lcd = dsim->priv.par;
+
+	dev_info(&lcd->ld->dev, "%s\n", __func__);
+	ret = dsim_write_hl_data(dsim, SEQ_DISPLAY_OFF, ARRAY_SIZE(SEQ_DISPLAY_OFF));
+	if (ret < 0) {
+		dsim_err("%s : fail to write CMD : DISPLAY_OFF\n", __func__);
+		goto exit_err;
+	}
+
+	msleep(35);
+
+	ret = dsim_write_hl_data(dsim, SEQ_SLEEP_IN, ARRAY_SIZE(SEQ_SLEEP_IN));
+	if (ret < 0) {
+		dsim_err("%s : fail to write CMD : SLEEP_IN\n", __func__);
+		goto exit_err;
+	}
+
+	msleep(150);
+
+exit_err:
+	return ret;
+}
+
+static int s6d7aa0_init(struct dsim_device *dsim)
+{
+	int ret = 0;
+	struct lcd_info *lcd = dsim->priv.par;
+
+	dev_info(&lcd->ld->dev, "%s\n", __func__);
+
+	ret = dsim_write_hl_data(dsim, SEQ_PASSWD1, ARRAY_SIZE(SEQ_PASSWD1));
+	if (ret < 0) {
+		dsim_err(":%s fail to write CMD : SEQ_PASSWD1\n", __func__);
+		goto init_exit;
+	}
+	ret = dsim_write_hl_data(dsim, SEQ_PASSWD2, ARRAY_SIZE(SEQ_PASSWD2));
+	if (ret < 0) {
+		dsim_err(":%s fail to write CMD : SEQ_PASSWD2\n", __func__);
+		goto init_exit;
+	}
+	ret = dsim_write_hl_data(dsim, SEQ_PASSWD3, ARRAY_SIZE(SEQ_PASSWD3));
+	if (ret < 0) {
+		dsim_err(":%s fail to write CMD : SEQ_PASSWD3\n", __func__);
+		goto init_exit;
+	}
+	ret = dsim_write_hl_data(dsim, SEQ_OTP_RELOAD, ARRAY_SIZE(SEQ_OTP_RELOAD));
+	if (ret < 0) {
+		dsim_err(":%s fail to write CMD : SEQ_OTP_RELOAD\n", __func__);
+		goto init_exit;
+	}
+	ret = dsim_write_hl_data(dsim, SEQ_BL_ON_CTL, ARRAY_SIZE(SEQ_BL_ON_CTL));
+	if (ret < 0) {
+		dsim_err(":%s fail to write CMD : SEQ_BL_ON_CTL\n", __func__);
+		goto init_exit;
+	}
+	ret = dsim_write_hl_data(dsim, SEQ_BC_PARAM_MDNIE, ARRAY_SIZE(SEQ_BC_PARAM_MDNIE));
+	if (ret < 0) {
+		dsim_err(":%s fail to write CMD : SEQ_BC_PARAM_MDNIE\n", __func__);
+		goto init_exit;
+	}
+	ret = dsim_write_hl_data(dsim, SEQ_FD_PARAM_MDNIE, ARRAY_SIZE(SEQ_FD_PARAM_MDNIE));
+	if (ret < 0) {
+		dsim_err(":%s fail to write CMD : SEQ_FD_PARAM_MDNIE\n", __func__);
+		goto init_exit;
+	}
+	ret = dsim_write_hl_data(dsim, SEQ_FE_PARAM_MDNIE, ARRAY_SIZE(SEQ_FE_PARAM_MDNIE));
+	if (ret < 0) {
+		dsim_err(":%s fail to write CMD : SEQ_FE_PARAM_MDNIE\n", __func__);
+		goto init_exit;
+	}
+	ret = dsim_write_hl_data(dsim, SEQ_B3_PARAM, ARRAY_SIZE(SEQ_B3_PARAM));
+	if (ret < 0) {
+		dsim_err(":%s fail to write CMD : SEQ_B3_PARAM\n", __func__);
+		goto init_exit;
+	}
+	ret = dsim_write_hl_data(dsim, SEQ_BACKLIGHT_CTL, ARRAY_SIZE(SEQ_BACKLIGHT_CTL));
+	if (ret < 0) {
+		dsim_err(":%s fail to write CMD : SEQ_BACKLIGHT_CTL\n", __func__);
+		goto init_exit;
+	}
+	ret = dsim_write_hl_data(dsim, SEQ_PORCH_CTL, ARRAY_SIZE(SEQ_PORCH_CTL));
+	if (ret < 0) {
+		dsim_err(":%s fail to write CMD : SEQ_PORCH_CTL\n", __func__);
+		goto init_exit;
+	}
+	msleep(10);
+	ret = dsim_write_hl_data(dsim, SEQ_SLEEP_OUT, ARRAY_SIZE(SEQ_SLEEP_OUT));
+	if (ret < 0) {
+		dsim_err(":%s fail to write CMD : SEQ_SLEEP_OUT\n", __func__);
+		goto init_exit;
+	}
+	msleep(120);
+		ret = dsim_write_hl_data(dsim, SEQ_PASSWD1_LOCK, ARRAY_SIZE(SEQ_PASSWD1_LOCK));
+	if (ret < 0) {
+		dsim_err(":%s fail to write CMD : SEQ_PASSWD1_LOCK\n", __func__);
+		goto init_exit;
+	}
+	ret = dsim_write_hl_data(dsim, SEQ_PASSWD2_LOCK, ARRAY_SIZE(SEQ_PASSWD2_LOCK));
+	if (ret < 0) {
+		dsim_err(":%s fail to write CMD : SEQ_PASSWD2_LOCK\n", __func__);
+		goto init_exit;
+	}
+	ret = dsim_write_hl_data(dsim, SEQ_PASSWD3_LOCK, ARRAY_SIZE(SEQ_PASSWD3_LOCK));
+	if (ret < 0) {
+		dsim_err(":%s fail to write CMD : SEQ_PASSWD3_LOCK\n", __func__);
+		goto init_exit;
+	}
+	ret = dsim_write_hl_data(dsim, SEQ_TEON_CTL, ARRAY_SIZE(SEQ_TEON_CTL));
+	if (ret < 0) {
+		dsim_err(":%s fail to write CMD : SEQ_TEON_CTL\n", __func__);
+		goto init_exit;
+	}
+
+	init_exit:
+	return ret;
+}
+
+static int s6d7aa0_probe(struct dsim_device *dsim)
+{
+	int ret = 0;
+	struct panel_private *priv = &dsim->priv;
+	struct lcd_info *lcd = dsim->priv.par;
+	struct device_node *np;
+	struct platform_device *pdev;
+
+	pr_info("%s: was called\n", __func__);
+
+	priv->lcdConnected = PANEL_CONNECTED;
+
+	s6d7aa0_read_init_info(dsim);
+	if (priv->lcdConnected == PANEL_DISCONNEDTED) {
+		dsim_err("dsim : %s lcd was not connected\n", __func__);
+		goto exit;
+	}
+	lcd->bd->props.max_brightness = UI_MAX_BRIGHTNESS;
+	lcd->bd->props.brightness = UI_DEFAULT_BRIGHTNESS;
+
+	lcd->temperature = NORMAL_TEMPERATURE;
+	lcd->acl_enable = 0;
+	lcd->current_acl = 0;
+	lcd->auto_brightness = 0;
+	lcd->siop_enable = 0;
+	lcd->current_hbm = 0;
+
+	np = of_find_node_with_property(NULL, "lcd_info");
+	np = of_parse_phandle(np, "lcd_info", 0);
+	pdev = of_platform_device_create(np, NULL, dsim->dev);
+
+	dev_info(&lcd->ld->dev, "%s: done\n", __func__);
+exit:
+	return ret;
+
+}
+
+struct dsim_panel_ops s6d7aa0_panel_ops = {
+	.probe			= s6d7aa0_probe,
+	.displayon		= s6d7aa0_displayon,
+	.exit			= s6d7aa0_exit,
+	.init			= s6d7aa0_init,
+};
+
+
 static ssize_t lcd_type_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	struct panel_private *priv = dev_get_drvdata(dev);
 	struct lcd_info *lcd = priv->par;
 
-	sprintf(buf, "SDC_%02X%02X%02X\n", lcd->id[0], lcd->id[1], lcd->id[2]);
+	sprintf(buf, "BOE_%02X%02X%02X\n", lcd->id[0], lcd->id[1], lcd->id[2]);
 
 	return strlen(buf);
 }
@@ -658,217 +873,5 @@ struct mipi_dsim_lcd_driver s6d7aa0_mipi_lcd_driver = {
 	.probe		= dsim_panel_probe,
 	.displayon	= dsim_panel_displayon,
 	.suspend	= dsim_panel_suspend,
-};
-
-static int s6d7aa0_read_init_info(struct dsim_device *dsim)
-{
-	int i = 0;
-	struct panel_private *panel = &dsim->priv;
-	struct lcd_info *lcd = dsim->priv.par;
-
-	dsim_info("MDD : %s was called\n", __func__);
-
-	if (lcdtype == 0) {
-		panel->lcdConnected = PANEL_DISCONNEDTED;
-		goto read_exit;
-	}
-
-	lcd->id[0] = (lcdtype & 0xFF0000) >> 16;
-	lcd->id[1] = (lcdtype & 0x00FF00) >> 8;
-	lcd->id[2] = (lcdtype & 0x0000FF) >> 0;
-
-	dsim_info("READ ID : ");
-	for (i = 0; i < S6D7AA0_ID_LEN; i++)
-		dsim_info("%02x, ", lcd->id[i]);
-	dsim_info("\n");
-
-read_exit:
-	return 0;
-
-}
-
-static int s6d7aa0_displayon(struct dsim_device *dsim)
-{
-	int ret = 0;
-	struct lcd_info *lcd = dsim->priv.par;
-
-	dev_info(&lcd->ld->dev, "%s\n", __func__);
-
-	ret = dsim_write_hl_data(dsim, SEQ_DISPLAY_ON, ARRAY_SIZE(SEQ_DISPLAY_ON));
-	if (ret < 0) {
-		dsim_err("%s : fail to write CMD : DISPLAY_ON\n", __func__);
-		goto displayon_err;
-	}
-
-	dsim_panel_set_brightness(dsim, 1);
-
-
-displayon_err:
-	return ret;
-
-}
-
-static int s6d7aa0_exit(struct dsim_device *dsim)
-{
-	int ret = 0;
-	struct lcd_info *lcd = dsim->priv.par;
-
-	dev_info(&lcd->ld->dev, "%s\n", __func__);
-	ret = dsim_write_hl_data(dsim, SEQ_DISPLAY_OFF, ARRAY_SIZE(SEQ_DISPLAY_OFF));
-	if (ret < 0) {
-		dsim_err("%s : fail to write CMD : DISPLAY_OFF\n", __func__);
-		goto exit_err;
-	}
-
-	msleep(35);
-
-	ret = dsim_write_hl_data(dsim, SEQ_SLEEP_IN, ARRAY_SIZE(SEQ_SLEEP_IN));
-	if (ret < 0) {
-		dsim_err("%s : fail to write CMD : SLEEP_IN\n", __func__);
-		goto exit_err;
-	}
-
-	msleep(150);
-
-exit_err:
-	return ret;
-}
-
-static int s6d7aa0_init(struct dsim_device *dsim)
-{
-	int ret = 0;
-	struct lcd_info *lcd = dsim->priv.par;
-
-	dev_info(&lcd->ld->dev, "%s\n", __func__);
-
-	ret = dsim_write_hl_data(dsim, SEQ_PASSWD1, ARRAY_SIZE(SEQ_PASSWD1));
-	if (ret < 0) {
-		dsim_err(":%s fail to write CMD : SEQ_PASSWD1\n", __func__);
-		goto init_exit;
-	}
-	ret = dsim_write_hl_data(dsim, SEQ_PASSWD2, ARRAY_SIZE(SEQ_PASSWD2));
-	if (ret < 0) {
-		dsim_err(":%s fail to write CMD : SEQ_PASSWD2\n", __func__);
-		goto init_exit;
-	}
-	ret = dsim_write_hl_data(dsim, SEQ_PASSWD3, ARRAY_SIZE(SEQ_PASSWD3));
-	if (ret < 0) {
-		dsim_err(":%s fail to write CMD : SEQ_PASSWD3\n", __func__);
-		goto init_exit;
-	}
-	ret = dsim_write_hl_data(dsim, SEQ_OTP_RELOAD, ARRAY_SIZE(SEQ_OTP_RELOAD));
-	if (ret < 0) {
-		dsim_err(":%s fail to write CMD : SEQ_OTP_RELOAD\n", __func__);
-		goto init_exit;
-	}
-	ret = dsim_write_hl_data(dsim, SEQ_BL_ON_CTL, ARRAY_SIZE(SEQ_BL_ON_CTL));
-	if (ret < 0) {
-		dsim_err(":%s fail to write CMD : SEQ_BL_ON_CTL\n", __func__);
-		goto init_exit;
-	}
-	ret = dsim_write_hl_data(dsim, SEQ_BC_PARAM_MDNIE, ARRAY_SIZE(SEQ_BC_PARAM_MDNIE));
-	if (ret < 0) {
-		dsim_err(":%s fail to write CMD : SEQ_BC_PARAM_MDNIE\n", __func__);
-		goto init_exit;
-	}
-	ret = dsim_write_hl_data(dsim, SEQ_FD_PARAM_MDNIE, ARRAY_SIZE(SEQ_FD_PARAM_MDNIE));
-	if (ret < 0) {
-		dsim_err(":%s fail to write CMD : SEQ_FD_PARAM_MDNIE\n", __func__);
-		goto init_exit;
-	}
-	ret = dsim_write_hl_data(dsim, SEQ_FE_PARAM_MDNIE, ARRAY_SIZE(SEQ_FE_PARAM_MDNIE));
-	if (ret < 0) {
-		dsim_err(":%s fail to write CMD : SEQ_FE_PARAM_MDNIE\n", __func__);
-		goto init_exit;
-	}
-	ret = dsim_write_hl_data(dsim, SEQ_B3_PARAM, ARRAY_SIZE(SEQ_B3_PARAM));
-	if (ret < 0) {
-		dsim_err(":%s fail to write CMD : SEQ_B3_PARAM\n", __func__);
-		goto init_exit;
-	}
-	ret = dsim_write_hl_data(dsim, SEQ_BACKLIGHT_CTL, ARRAY_SIZE(SEQ_BACKLIGHT_CTL));
-	if (ret < 0) {
-		dsim_err(":%s fail to write CMD : SEQ_BACKLIGHT_CTL\n", __func__);
-		goto init_exit;
-	}
-	ret = dsim_write_hl_data(dsim, SEQ_PORCH_CTL, ARRAY_SIZE(SEQ_PORCH_CTL));
-	if (ret < 0) {
-		dsim_err(":%s fail to write CMD : SEQ_PORCH_CTL\n", __func__);
-		goto init_exit;
-	}
-	msleep(10);
-	ret = dsim_write_hl_data(dsim, SEQ_SLEEP_OUT, ARRAY_SIZE(SEQ_SLEEP_OUT));
-	if (ret < 0) {
-		dsim_err(":%s fail to write CMD : SEQ_SLEEP_OUT\n", __func__);
-		goto init_exit;
-	}
-	msleep(120);
-		ret = dsim_write_hl_data(dsim, SEQ_PASSWD1_LOCK, ARRAY_SIZE(SEQ_PASSWD1_LOCK));
-	if (ret < 0) {
-		dsim_err(":%s fail to write CMD : SEQ_PASSWD1_LOCK\n", __func__);
-		goto init_exit;
-	}
-	ret = dsim_write_hl_data(dsim, SEQ_PASSWD2_LOCK, ARRAY_SIZE(SEQ_PASSWD2_LOCK));
-	if (ret < 0) {
-		dsim_err(":%s fail to write CMD : SEQ_PASSWD2_LOCK\n", __func__);
-		goto init_exit;
-	}
-	ret = dsim_write_hl_data(dsim, SEQ_PASSWD3_LOCK, ARRAY_SIZE(SEQ_PASSWD3_LOCK));
-	if (ret < 0) {
-		dsim_err(":%s fail to write CMD : SEQ_PASSWD3_LOCK\n", __func__);
-		goto init_exit;
-	}
-	ret = dsim_write_hl_data(dsim, SEQ_TEON_CTL, ARRAY_SIZE(SEQ_TEON_CTL));
-	if (ret < 0) {
-		dsim_err(":%s fail to write CMD : SEQ_TEON_CTL\n", __func__);
-		goto init_exit;
-	}
-
-	init_exit:
-	return ret;
-}
-
-static int s6d7aa0_probe(struct dsim_device *dsim)
-{
-	int ret = 0;
-	struct panel_private *priv = &dsim->priv;
-	struct lcd_info *lcd = dsim->priv.par;
-	struct device_node *np;
-	struct platform_device *pdev;
-
-	pr_info("%s: was called\n", __func__);
-
-	priv->lcdConnected = PANEL_CONNECTED;
-
-	s6d7aa0_read_init_info(dsim);
-	if (priv->lcdConnected == PANEL_DISCONNEDTED) {
-		dsim_err("dsim : %s lcd was not connected\n", __func__);
-		goto exit;
-	}
-	lcd->bd->props.max_brightness = UI_MAX_BRIGHTNESS;
-	lcd->bd->props.brightness = UI_DEFAULT_BRIGHTNESS;
-
-	lcd->temperature = NORMAL_TEMPERATURE;
-	lcd->acl_enable = 0;
-	lcd->current_acl = 0;
-	lcd->auto_brightness = 0;
-	lcd->siop_enable = 0;
-	lcd->current_hbm = 0;
-
-	np = of_find_node_with_property(NULL, "lcd_info");
-	np = of_parse_phandle(np, "lcd_info", 0);
-	pdev = of_platform_device_create(np, NULL, dsim->dev);
-
-	dev_info(&lcd->ld->dev, "%s: done\n", __func__);
-exit:
-	return ret;
-
-}
-
-struct dsim_panel_ops s6d7aa0_panel_ops = {
-	.probe			= s6d7aa0_probe,
-	.displayon		= s6d7aa0_displayon,
-	.exit			= s6d7aa0_exit,
-	.init			= s6d7aa0_init,
 };
 

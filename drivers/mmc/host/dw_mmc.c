@@ -281,6 +281,29 @@ static inline int dw_mci_debug_init(struct dw_mci *host)
 }
 #endif /* defined (CONFIG_MMC_DW_DEBUG) */
 
+/* Add sysfs for argos */
+static ssize_t dw_mci_transferred_cnt_show(struct device *dev,
+		struct device_attribute *attr,
+		char *buf)
+{
+	struct mmc_host *mmc = container_of(dev, struct mmc_host, class_dev);
+	struct dw_mci_slot *slot = mmc_priv(mmc);
+	struct dw_mci *host = slot->host;
+
+	return sprintf(buf, "%u\n" , host->transferred_cnt);
+}
+
+DEVICE_ATTR(trans_count, 0444, dw_mci_transferred_cnt_show, NULL);
+
+static void dw_mci_transferred_cnt_init(struct dw_mci *host, struct mmc_host *mmc)
+{
+	int sysfs_err = 0;
+	sysfs_err = sysfs_create_file(&(mmc->class_dev.kobj),
+			&(dev_attr_trans_count.attr));
+	pr_info("%s: trans_count: %s.....\n", __func__,
+			sysfs_err ? "failed" : "successed");
+}
+
 static int dw_mci_ciu_clk_en(struct dw_mci *host, bool force_gating)
 {
 	int ret = 0;
@@ -683,6 +706,16 @@ static void dw_mci_start_command(struct dw_mci *host,
 		"start command: ARGR=0x%08x CMDR=0x%08x\n",
 		cmd->arg, cmd_flags);
 
+#if 1 /* 20160326 AI 1 */
+	if (cmd->opcode == SD_IO_RW_EXTENDED) {
+		u32 ctrl;
+		ctrl = mci_readl(host, CTRL);
+		ctrl |= SDMMC_CTRL_FIFO_RESET;
+		mci_writel(host, CTRL, ctrl);
+
+		while (mci_readl(host, CTRL) & SDMMC_CTRL_FIFO_RESET);
+	}
+#endif /* 20160326 AI 1 */
 	/* needed to
 	 * add get node parse_dt for check to enable logging
 	 * if defined(CMD_LOGGING)
@@ -1045,7 +1078,7 @@ static int dw_mci_pre_dma_transfer(struct dw_mci *host,
 	struct dw_mci_slot *slot = host->cur_slot;
 	struct mmc_card *card = slot->mmc->card;
 	unsigned int i, sg_len;
-	unsigned int align_mask = 3;
+	unsigned int align_mask = ((host->data_shift == 3) ? 8 : 4) -1;
 
 	if (!next && data->host_cookie)
 		return data->host_cookie;
@@ -1058,11 +1091,11 @@ static int dw_mci_pre_dma_transfer(struct dw_mci *host,
 	if (data->blocks * data->blksz < DW_MCI_DMA_THRESHOLD)
 		return -EINVAL;
 
-	if (data->blksz & 3)
+	if (data->blksz & align_mask)
 		return -EINVAL;
 
 	for_each_sg(data->sg, sg, data->sg_len, i) {
-		if (sg->offset & 3 || sg->length & 3)
+		if (sg->offset & align_mask || sg->length & align_mask)
 			return -EINVAL;
 	}
 
@@ -1093,11 +1126,6 @@ static int dw_mci_pre_dma_transfer(struct dw_mci *host,
 				&& card->host->caps & MMC_CAP_UHS_SDR104
 				&& data->flags & MMC_DATA_READ)
 			mci_writel(host, CDTHRCTL, data->blksz << 16 | 1);
-	}
-
-	for_each_sg(data->sg, sg, data->sg_len, i) {
-		if (sg->offset & align_mask || sg->length & align_mask)
-			return -EINVAL;
 	}
 
 	sg_len = dma_map_sg(host->dev,
@@ -1512,6 +1540,7 @@ static void __dw_mci_start_request(struct dw_mci *host,
 		dw_mci_set_timeout(host, dw_mci_calc_timeout(host));
 		mci_writel(host, BYTCNT, data->blksz*data->blocks);
 		mci_writel(host, BLKSIZ, data->blksz);
+		host->transferred_cnt += data->blksz * data->blocks;
 	}
 
 	cmdflags = dw_mci_prepare_command(slot->mmc, cmd);
@@ -3243,6 +3272,9 @@ static int dw_mci_init_slot(struct dw_mci *host, unsigned int id)
 		host->pdata->ext_cd_init(&dw_mci_notify_change, (void *)host, mmc);
 #endif
 
+	/* For argos */
+	dw_mci_transferred_cnt_init(host, mmc);
+
 	return 0;
 
 err_host_allocated:
@@ -3858,9 +3890,14 @@ int dw_mci_probe(struct dw_mci *host)
 	 * receive ready and error such as transmit, receive timeout, crc error
 	 */
 	mci_writel(host, RINTSTS, 0xFFFFFFFF);
-	mci_writel(host, INTMASK, SDMMC_INT_CMD_DONE | SDMMC_INT_DATA_OVER |
-		   SDMMC_INT_TXDR | SDMMC_INT_RXDR |
-		   DW_MCI_ERROR_FLAGS | SDMMC_INT_CD);
+	if (host->pdata->cd_type == DW_MCI_CD_INTERNAL)
+		mci_writel(host, INTMASK, SDMMC_INT_CMD_DONE | SDMMC_INT_DATA_OVER |
+				SDMMC_INT_TXDR | SDMMC_INT_RXDR |
+				DW_MCI_ERROR_FLAGS | SDMMC_INT_CD);
+	else
+		mci_writel(host, INTMASK, SDMMC_INT_CMD_DONE | SDMMC_INT_DATA_OVER |
+				SDMMC_INT_TXDR | SDMMC_INT_RXDR |
+				DW_MCI_ERROR_FLAGS);
 	mci_writel(host, CTRL, SDMMC_CTRL_INT_ENABLE); /* Enable mci interrupt */
 
 	dev_info(host->dev, "DW MMC controller at irq %d, "
@@ -4010,9 +4047,15 @@ int dw_mci_resume(struct dw_mci *host)
 	mci_writel(host, TMOUT, 0xFFFFFFFF);
 
 	mci_writel(host, RINTSTS, 0xFFFFFFFF);
-	mci_writel(host, INTMASK, SDMMC_INT_CMD_DONE | SDMMC_INT_DATA_OVER |
-		   SDMMC_INT_TXDR | SDMMC_INT_RXDR |
-		   DW_MCI_ERROR_FLAGS | SDMMC_INT_CD);
+	if (host->pdata->cd_type == DW_MCI_CD_INTERNAL)
+		mci_writel(host, INTMASK, SDMMC_INT_CMD_DONE | SDMMC_INT_DATA_OVER |
+				SDMMC_INT_TXDR | SDMMC_INT_RXDR |
+				DW_MCI_ERROR_FLAGS | SDMMC_INT_CD);
+	else
+		mci_writel(host, INTMASK, SDMMC_INT_CMD_DONE | SDMMC_INT_DATA_OVER |
+				SDMMC_INT_TXDR | SDMMC_INT_RXDR |
+				DW_MCI_ERROR_FLAGS);
+
 	mci_writel(host, CTRL, SDMMC_CTRL_INT_ENABLE);
 
 	for (i = 0; i < host->num_slots; i++) {

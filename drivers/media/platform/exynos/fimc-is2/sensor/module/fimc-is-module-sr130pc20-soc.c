@@ -57,6 +57,7 @@ static const struct sensor_regset_table sr130pc20_regset_table = {
 	.fps_7			= SENSOR_REGISTER_REGSET(sr130pc20_fps_7_camcorder),
 	.fps_15			= SENSOR_REGISTER_REGSET(sr130pc20_fps_15_camcorder),
 	.fps_25_camcorder	= SENSOR_REGISTER_REGSET(sr130pc20_fps_25_camcorder),
+	.fps_30_camcorder	= SENSOR_REGISTER_REGSET(sr130pc20_fps_30_camcorder),
 
 	.wb_auto		= SENSOR_REGISTER_REGSET(sr130pc20_wb_auto),
 	.wb_daylight		= SENSOR_REGISTER_REGSET(sr130pc20_wb_daylight),
@@ -100,6 +101,8 @@ static const struct sensor_regset_table sr130pc20_regset_table = {
 	//.resol_1280_960		= SENSOR_REGISTER_REGSET(sr130pc20_resol_1280_960),
 	//.resol_1600_1200	= SENSOR_REGISTER_REGSET(sr130pc20_resol_1600_1200),
 	/*.capture_mode = SENSOR_REGISTER_REGSET(sr130pc20_resol_1600_1200)*/
+	.resol_176_144_capture		= SENSOR_REGISTER_REGSET(sr130pc20_resol_176_144_capture),
+	.resol_320_240_capture		= SENSOR_REGISTER_REGSET(sr130pc20_resol_320_240_capture),
 	.resol_640_480_capture		= SENSOR_REGISTER_REGSET(sr130pc20_resol_640_480_capture),
 	.resol_1280_960_capture 	= SENSOR_REGISTER_REGSET(sr130pc20_resol_1280_960_capture),
 
@@ -136,8 +139,8 @@ static struct fimc_is_sensor_cfg settle_sr130pc20[] = {
 	FIMC_IS_SENSOR_CFG_SOC(800, 600, 30, 4, 2),
 	FIMC_IS_SENSOR_CFG_SOC(640, 480, 30, 4, 3),
 	FIMC_IS_SENSOR_CFG_SOC(640, 480, 25, 4, 4),
-	FIMC_IS_SENSOR_CFG_SOC(352, 288, 30, 4, 5),
-	FIMC_IS_SENSOR_CFG_SOC(352, 288, 25, 4, 6),
+	FIMC_IS_SENSOR_CFG_SOC(320, 240, 25, 4, 5),
+	FIMC_IS_SENSOR_CFG_SOC(176, 144, 25, 4, 6),
 };
 
 static const struct sr130pc20_fps sr130pc20_framerates[] = {
@@ -599,25 +602,33 @@ static int sr130pc20_set_preview_size(struct v4l2_subdev *subdev)
 	cam_info("set preview size(%dx%d)\n", width, height);
 
 	if (state->sensor_mode == SENSOR_MOVIE) {
-		/* err = sensor_sr130pc20_apply_set(subdev, "sr130pc20_resol_640_480", &sr130pc20_regset_table.resol_640_480);
-		CHECK_ERR_MSG(err, "fail to set preview size\n");*/
+		if (width == 640 && height == 480) {
+			err = sensor_sr130pc20_apply_set(subdev, "sr130pc20_resol_640_480",
+				&sr130pc20_regset_table.resol_640_480);
+		} else if (width == 320 && height == 240) {
+			err = sensor_sr130pc20_apply_set(subdev, "sr130pc20_resol_320_240",
+				&sr130pc20_regset_table.resol_320_240);
+		} else { // 176 x 144
+			err = sensor_sr130pc20_apply_set(subdev, "sr130pc20_resol_176_144",
+				&sr130pc20_regset_table.resol_176_144);
+		}
 		cam_info("sensor_mode is movie\n");
 	} else {
 		if (width == 176 && height == 144) {
-			err = sensor_sr130pc20_apply_set(subdev, "sr130pc20_resol_176_144", &sr130pc20_regset_table.resol_176_144);
+			err = sensor_sr130pc20_apply_set(subdev, "sr130pc20_resol_176_144",
+				&sr130pc20_regset_table.resol_176_144);
 		} else if(width == 352 && height == 288) { /* VT Preview size */
-			err = sensor_sr130pc20_apply_set(subdev, "sr130pc20_resol_352_288", &sr130pc20_regset_table.resol_352_288);
+			err = sensor_sr130pc20_apply_set(subdev, "sr130pc20_resol_352_288",
+				&sr130pc20_regset_table.resol_352_288);
 		} else if(width == 320 && height == 240) {
-			err = sensor_sr130pc20_apply_set(subdev, "sr130pc20_resol_320_240", &sr130pc20_regset_table.resol_320_240);
+			err = sensor_sr130pc20_apply_set(subdev, "sr130pc20_resol_320_240",
+				&sr130pc20_regset_table.resol_320_240);
 		} else if (width == 640 && height == 480) {
-			if(state->skip_set_vga_size == true) {
-				cam_info("skip setting preview size set 640 X 480\n");
-			} else {
-				cam_info("preview size set 640 X 480\n");
-				err = sensor_sr130pc20_apply_set(subdev, "sr130pc20_resol_640_480", &sr130pc20_regset_table.resol_640_480);
-			}
+			err = sensor_sr130pc20_apply_set(subdev, "sr130pc20_resol_640_480",
+				&sr130pc20_regset_table.resol_640_480);
 		} else {
-			err = sensor_sr130pc20_apply_set(subdev, "sr130pc20_resol_800_600", &sr130pc20_regset_table.resol_800_600);
+			err = sensor_sr130pc20_apply_set(subdev, "sr130pc20_resol_800_600",
+				&sr130pc20_regset_table.resol_800_600);
 		}
 	}
 	CHECK_ERR_MSG(err, "fail to set preview size\n");
@@ -630,7 +641,7 @@ static int sr130pc20_set_frame_rate(struct v4l2_subdev *subdev, s32 fps)
 {
 	struct sr130pc20_state *state = to_state(subdev);
 	int min = FRAME_RATE_AUTO;
-	int max = FRAME_RATE_25;
+	int max = FRAME_RATE_30;
 	int ret = 0;
 	int i = 0, fps_index = -1;
 
@@ -645,6 +656,11 @@ static int sr130pc20_set_frame_rate(struct v4l2_subdev *subdev, s32 fps)
 		cam_info("pending fps %d\n", fps);
 		state->req_fps = fps;
 		return 0;
+	}
+
+	if (state->sensor_mode == SENSOR_MOVIE) {
+		fps = FRAME_RATE_25;
+		cam_info("change frame rate to %d fps for recording\n", fps);
 	}
 
 	for (i = 0; i < ARRAY_SIZE(sr130pc20_framerates); i++) {
@@ -667,26 +683,28 @@ static int sr130pc20_set_frame_rate(struct v4l2_subdev *subdev, s32 fps)
 
 	switch (fps) {
 	case FRAME_RATE_AUTO :
-		ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_fps_auto", &sr130pc20_regset_table.fps_auto);
-		state->skip_set_vga_size = true;
-		state->preview.update_frmsize = 1;
-		sr130pc20_set_preview_size(subdev);
+		ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_fps_auto",
+			&sr130pc20_regset_table.fps_auto);
 		break;
 	case FRAME_RATE_7 :
-		ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_fps_7", &sr130pc20_regset_table.fps_7);
-		state->skip_set_vga_size = true;
+		ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_fps_7",
+			&sr130pc20_regset_table.fps_7);
 		break;
 	case FRAME_RATE_15 :
-		ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_fps_15", &sr130pc20_regset_table.fps_15);
-		state->skip_set_vga_size = true;
+		ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_fps_15",
+			&sr130pc20_regset_table.fps_15);
 		break;
 	case FRAME_RATE_25:
 		ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_fps_25_camcorder",
 			&sr130pc20_regset_table.fps_25_camcorder);
-		state->skip_set_vga_size = true;
+		break;
+	case FRAME_RATE_30:
+		ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_fps_30_camcorder",
+			&sr130pc20_regset_table.fps_30_camcorder);
 		break;
 	default:
-		cam_dbg("%s: Not supported fps (%d)\n", __func__, fps);
+		ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_fps_auto",
+			&sr130pc20_regset_table.fps_auto);
 		break;
 	}
 
@@ -706,19 +724,24 @@ static int sr130pc20_set_effect(struct v4l2_subdev *subdev, int effect)
 	switch (effect) {
 	case V4L2_IMAGE_EFFECT_BASE :
 	case V4L2_IMAGE_EFFECT_NONE :
-		ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_Effect_Normal", &sr130pc20_regset_table.effect_none);
+		ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_Effect_Normal",
+			&sr130pc20_regset_table.effect_none);
 		break;
 	case V4L2_IMAGE_EFFECT_BNW :
-		ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_Effect_Gray", &sr130pc20_regset_table.effect_gray);
+		ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_Effect_Gray",
+			&sr130pc20_regset_table.effect_gray);
 		break;
 	case V4L2_IMAGE_EFFECT_SEPIA :
-		ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_Effect_Sepia", &sr130pc20_regset_table.effect_sepia);
+		ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_Effect_Sepia",
+			&sr130pc20_regset_table.effect_sepia);
 		break;
 	case V4L2_IMAGE_EFFECT_NEGATIVE :
-		ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_Effect_Negative", &sr130pc20_regset_table.effect_negative);
+		ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_Effect_Negative",
+			&sr130pc20_regset_table.effect_negative);
 		break;
 	case V4L2_IMAGE_EFFECT_AQUA :
-		ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_Effect_Aqua", &sr130pc20_regset_table.effect_aqua);
+		ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_Effect_Aqua",
+			&sr130pc20_regset_table.effect_aqua);
 		break;
 	default:
 		cam_dbg("%s: Not support.(%d)\n", __func__, effect);
@@ -919,7 +942,8 @@ static int sr130pc20_set_hflip(struct v4l2_subdev *subdev)
 
 	cam_info("[%s:%d] E \n",__func__, __LINE__);
 
-	ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_HFlip", &sr130pc20_regset_table.hflip);
+	ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_HFlip",
+		&sr130pc20_regset_table.hflip);
 
 	return ret;
 }
@@ -930,7 +954,8 @@ static int sr130pc20_set_vflip(struct v4l2_subdev *subdev)
 
 	cam_info("[%s:%d] E \n",__func__, __LINE__);
 
-	ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_VFlip", &sr130pc20_regset_table.vflip);
+	ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_VFlip",
+		&sr130pc20_regset_table.vflip);
 
 	return ret;
 }
@@ -941,7 +966,8 @@ static int sr130pc20_set_flip_off(struct v4l2_subdev *subdev)
 
 	cam_info("[%s:%d] E \n",__func__, __LINE__);
 
-	ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_Flip_Off", &sr130pc20_regset_table.flip_off);
+	ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_Flip_Off",
+		&sr130pc20_regset_table.flip_off);
 
 	return ret;
 }
@@ -953,7 +979,8 @@ static int sr130pc20_set_camcorder_flip(struct v4l2_subdev *subdev)
 
 	cam_info("[%s:%d] E \n",__func__, __LINE__);
 
-	ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_Camcorder_Flip", &sr130pc20_regset_table.camcorder_flip);
+	ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_Camcorder_Flip",
+		&sr130pc20_regset_table.camcorder_flip);
 
 	return ret;
 }
@@ -990,7 +1017,8 @@ int sensor_sr130pc20_stream_on(struct v4l2_subdev *subdev)
 
 	cam_info("stream on\n");
 
-	ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_start_stream", &sr130pc20_regset_table.start_stream);
+	ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_start_stream",
+		&sr130pc20_regset_table.start_stream);
 
 	return ret;
 }
@@ -1001,7 +1029,8 @@ int sensor_sr130pc20_stream_off(struct v4l2_subdev *subdev)
 	struct sr130pc20_state *state = to_state(subdev);
 
 	cam_info("stream off\n");
-	ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_stop_stream", &sr130pc20_regset_table.stop_stream);
+	ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_stop_stream",
+		&sr130pc20_regset_table.stop_stream);
 	state->preview.update_frmsize = 1;
 	state->skip_set_vga_size = false;
 
@@ -1164,13 +1193,15 @@ static int sensor_sr130pc20_init(struct v4l2_subdev *subdev, u32 val)
 		goto p_err;
 	}
 
-	ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_Init_Reg", &sr130pc20_regset_table.init);
+	ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_Init_Reg",
+		&sr130pc20_regset_table.init);
 	if (ret) {
 		cam_err("%s: write cmd failed\n", __func__);
 		goto p_err;
 	}
 
-	ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_stop_stream", &sr130pc20_regset_table.stop_stream);
+	ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_stop_stream",
+		&sr130pc20_regset_table.stop_stream);
 	if (ret) {
 		cam_err("%s: write cmd failed\n", __func__);
 		goto p_err;
@@ -1271,6 +1302,10 @@ static int sr130pc20_set_capture_size(struct v4l2_subdev *subdev)
 	height = state->capture.frmsize->height;
 	state->preview.update_frmsize = 1;
 
+	if (state->fps != FRAME_RATE_AUTO)
+		err = sensor_sr130pc20_apply_set(subdev, "sr130pc20_fps_auto",
+			&sr130pc20_regset_table.fps_auto);
+
 	/* Transit to capture mode */
 	if (state->capture.lowlux_night) {
 		cam_info("capture_mode: night lowlux\n");
@@ -1279,9 +1314,17 @@ static int sr130pc20_set_capture_size(struct v4l2_subdev *subdev)
 
 	cam_info("%s - width * height = %d * %d \n",__func__, width, height);
 	if(width == 1280 && height == 960)
-		err = sensor_sr130pc20_apply_set(subdev, "sr130pc20_resol_1280_960_capture", &sr130pc20_regset_table.resol_1280_960_capture);
-	else // 640x480
-		err = sensor_sr130pc20_apply_set(subdev, "sr130pc20_resol_640_480_capture", &sr130pc20_regset_table.resol_640_480_capture);
+		err = sensor_sr130pc20_apply_set(subdev, "sr130pc20_resol_1280_960_capture",
+			&sr130pc20_regset_table.resol_1280_960_capture);
+	else if(width == 640 && height == 480)
+		err = sensor_sr130pc20_apply_set(subdev, "sr130pc20_resol_640_480_capture",
+			&sr130pc20_regset_table.resol_640_480_capture);
+	else if(width == 320 && height == 240)
+		err = sensor_sr130pc20_apply_set(subdev, "sr130pc20_resol_320_240_capture",
+			&sr130pc20_regset_table.resol_320_240_capture);
+	else // 176x144
+		err = sensor_sr130pc20_apply_set(subdev, "sr130pc20_resol_176_144_capture",
+			&sr130pc20_regset_table.resol_176_144_capture);
 
 	CHECK_ERR_MSG(err, "fail to capture_mode (%d)\n", err);
 
@@ -1939,7 +1982,7 @@ static int sensor_sr130pc20_power_setpin(struct i2c_client *client,
 	SET_PIN(pdata, SENSOR_SCENARIO_EXTERNAL, GPIO_SCENARIO_ON, gpio_none, "VT_CAM_2P8", PIN_REGULATOR, 1, 2000);
 	SET_PIN(pdata, SENSOR_SCENARIO_EXTERNAL, GPIO_SCENARIO_ON, gpio_standby, NULL, PIN_OUTPUT, 1, 2000);
 	SET_PIN(pdata, SENSOR_SCENARIO_EXTERNAL, GPIO_SCENARIO_ON, gpio_none, "pin", PIN_FUNCTION, 0, 31000);
-	SET_PIN(pdata, SENSOR_SCENARIO_EXTERNAL, GPIO_SCENARIO_ON, gpio_reset, NULL, PIN_OUTPUT, 1, 10);
+	SET_PIN(pdata, SENSOR_SCENARIO_EXTERNAL, GPIO_SCENARIO_ON, gpio_reset, NULL, PIN_OUTPUT, 1, 1000);
 
 	/* FRONT CAMERA - POWER OFF */
 	SET_PIN(pdata, SENSOR_SCENARIO_EXTERNAL, GPIO_SCENARIO_OFF, gpio_reset, NULL, PIN_OUTPUT, 0, 10);

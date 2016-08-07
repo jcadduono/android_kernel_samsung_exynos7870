@@ -36,7 +36,7 @@
 #include <linux/muic/muic_notifier.h>
 #endif
 #ifdef CONFIG_SENSORS_SX9310_KEYSTRING_SKIPDATA
-#include <linux/sec_debug.h>
+#include <linux/sec_ext.h>
 #endif
 
 #define VENDOR_NAME              "SEMTECH"
@@ -799,12 +799,12 @@ static ssize_t sx9310_onoff_store(struct device *dev,
 			input_sync(data->input);
 		}
 #ifdef CONFIG_SENSORS_SX9310_KEYSTRING_SKIPDATA
-		set_param(GSP_OFFSET, '0');
+		sec_set_param(GSP_OFFSET, '0');
 #endif
 	} else {
 		data->skip_data = false;
 #ifdef CONFIG_SENSORS_SX9310_KEYSTRING_SKIPDATA
-		set_param(GSP_OFFSET, '1');
+		sec_set_param(GSP_OFFSET, '1');
 #endif
 	}
 

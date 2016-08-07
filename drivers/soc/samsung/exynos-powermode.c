@@ -805,6 +805,8 @@ int __init exynos_powermode_init(void)
 
 	dt_init_exynos_powermode();
 
+	pm_info->sicd_entered = -1;
+
 	for_each_syspower_mode(mode)
 		for_each_idle_ip(index)
 			pm_info->idle_ip_mask[mode][index] = 0xFFFFFFFF;

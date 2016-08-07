@@ -71,6 +71,7 @@ struct s3c24xx_uart_port {
 	s32				mif_qos_val;
 	s32				cpu_qos_val;
 	u32				use_default_irq;
+	u32				use_alive_io;
 	unsigned long			qos_timeout;
 
 #define DOMAIN_TOP	0

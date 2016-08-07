@@ -21,6 +21,16 @@
 #ifndef SEC_EXT_H
 #define SEC_EXT_H
 
+/* 
+ * PMU register offset : MUST MODIFY ACCORDING TO SoC
+ */
+#define EXYNOS_PMU_INFORM2 0x0808
+#define EXYNOS_PMU_INFORM3 0x080C
+#define EXYNOS_PMU_PS_HOLD_CONTROL 0x330C
+
+/*
+ * Bootstat @ /proc/boot_stat
+ */
 #ifdef CONFIG_SEC_BOOTSTAT
 extern void sec_bootstat_mct_start(u64 t);
 extern void sec_bootstat_add(const char * c);
@@ -37,12 +47,28 @@ extern void sec_bootstat_get_thermal(int *temp, int size);
 #define sec_bootstat_get_thermal(a,b)		do { } while(0)	
 #endif /* CONFIG_SEC_BOOT_STAT */
 
+/*
+ * Initcall log @ /proc/initcall_debug
+ * show a sorted execution time list of initcalls.
+ */
 #ifdef CONFIG_SEC_INITCALL_DEBUG
 #define SEC_INITCALL_DEBUG_MIN_TIME		10000
-
 extern void sec_initcall_debug_add(initcall_t fn, unsigned long long t);
 #else
 #define sec_initcall_debug_add(a,b)		do { } while(0)	
 #endif /* CONFIG_SEC_INITCALL_DEBUG */
 
-#endif
+/*
+ * Param op.
+ */
+#ifdef CONFIG_SEC_PARAM
+#define CM_OFFSET				0x700234
+#define CM_OFFSET_LIMIT				1
+#define GSP_OFFSET				0x700238
+#define GSP_OFFSET_LIMIT 			0
+extern int  sec_set_param(unsigned long offset, char val);
+#else
+#define sec_set_param(a,b)			{-1)
+#endif /* CONFIG_SEC_PARAM */
+
+#endif /* CONFIG_SEC_EXT */

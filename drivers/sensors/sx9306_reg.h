@@ -70,7 +70,21 @@ struct smtc_reg_data {
 	unsigned char val;
 };
 
-static const struct smtc_reg_data setup_reg[] = {
+enum {
+    SX9306_CTRL0_IDX = 1,
+    SX9306_CTRL1_IDX,
+    SX9306_CTRL2_IDX,
+    SX9306_CTRL3_IDX,
+    SX9306_CTRL4_IDX,
+    SX9306_CTRL5_IDX,
+    SX9306_CTRL6_IDX,
+    SX9306_CTRL7_IDX,
+    SX9306_CTRL8_IDX,
+    SX9306_CTRL9_IDX,
+    SX9306_CTRL10_IDX
+};
+
+static struct smtc_reg_data setup_reg[] = {
 	{
 		.reg = SX9306_IRQ_ENABLE_REG,
 		.val = 0x60,
@@ -111,14 +125,14 @@ static const struct smtc_reg_data setup_reg[] = {
 		.reg = SX9306_CPS_CTRL8_REG,
 		.val = 0x00,
 	},
-	/*{
+	{
 		.reg = SX9306_CPS_CTRL9_REG,
 		.val = 0xC0,
 	},
 	{
 		.reg = SX9306_CPS_CTRL10_REG,
 		.val = 0xAA,
-	},  */
+	},
 };
 
 enum {

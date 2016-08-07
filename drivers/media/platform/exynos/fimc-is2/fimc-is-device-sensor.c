@@ -39,6 +39,7 @@
 #include "fimc-is-video.h"
 #include "fimc-is-dt.h"
 #include "fimc-is-debug.h"
+#include "fimc-is-dvfs.h"
 
 #include "fimc-is-device-sensor.h"
 #include "fimc-is-interface-wrap.h"
@@ -46,9 +47,9 @@
 #include "fimc-is-device-ois.h"
 #endif
 
-struct pm_qos_request exynos_sensor_qos_int;
-struct pm_qos_request exynos_sensor_qos_cam;
-struct pm_qos_request exynos_sensor_qos_mem;
+extern struct pm_qos_request exynos_isp_qos_int;
+extern struct pm_qos_request exynos_isp_qos_cam;
+extern struct pm_qos_request exynos_isp_qos_mem;
 
 int fimc_is_sensor_runtime_suspend(struct device *dev);
 int fimc_is_sensor_runtime_resume(struct device *dev);
@@ -1631,8 +1632,22 @@ int fimc_is_sensor_s_input(struct fimc_is_device_sensor *device,
 
 #if defined(CONFIG_PM_DEVFREQ)
 	if (test_bit(FIMC_IS_SENSOR_DRIVING, &device->state)) {
-		pm_qos_add_request(&exynos_sensor_qos_cam, PM_QOS_DEVICE_THROUGHPUT, 500000);
-		pm_qos_add_request(&exynos_sensor_qos_mem, PM_QOS_BUS_THROUGHPUT, 632000);
+		int int_qos, mif_qos, cam_qos;
+
+		int_qos = fimc_is_get_qos(core, FIMC_IS_DVFS_INT, FIMC_IS_SN_MAX);
+		mif_qos = fimc_is_get_qos(core, FIMC_IS_DVFS_MIF, FIMC_IS_SN_MAX);
+		cam_qos = fimc_is_get_qos(core, FIMC_IS_DVFS_CAM, FIMC_IS_SN_MAX);
+
+		/* DEVFREQ lock */
+		if (int_qos > 0)
+			pm_qos_add_request(&exynos_isp_qos_int, PM_QOS_DEVICE_THROUGHPUT, int_qos);
+		if (mif_qos > 0)
+			pm_qos_add_request(&exynos_isp_qos_mem, PM_QOS_BUS_THROUGHPUT, mif_qos);
+		if (cam_qos > 0)
+			pm_qos_add_request(&exynos_isp_qos_cam, PM_QOS_CAM_THROUGHPUT, cam_qos);
+
+		info("[RSC] %s: QoS LOCK [INT(%d), MIF(%d), CAM(%d)]\n",
+				__func__, int_qos, mif_qos, cam_qos);
 	}
 #endif
 
@@ -2469,6 +2484,34 @@ int fimc_is_sensor_front_start(struct fimc_is_device_sensor *device,
 		goto p_err;
 	}
 
+#if defined(CONFIG_PM_DEVFREQ) && defined(ENABLE_DVFS)
+	/* for external sensor's dvfs */
+	if (test_bit(FIMC_IS_SENSOR_DRIVING, &device->state)) {
+		struct fimc_is_dvfs_ctrl *dvfs_ctrl;
+		int scenario_id;
+
+		dvfs_ctrl = &device->resourcemgr->dvfs_ctrl;
+		mutex_lock(&dvfs_ctrl->lock);
+
+		ret = fimc_is_dvfs_sel_table(device->resourcemgr);
+		if (ret) {
+			merr("fimc_is_dvfs_sel_table is fail(%d)", device, ret);
+			goto p_err;
+		}
+
+		/* try to find external scenario to apply */
+		scenario_id = fimc_is_dvfs_sel_external(device);
+		if (scenario_id >= 0) {
+			struct fimc_is_dvfs_scenario_ctrl *external_ctrl = dvfs_ctrl->external_ctrl;
+			minfo("[ISC:D] tbl[%d] external scenario(%d)-[%s]\n", device,
+				dvfs_ctrl->dvfs_table_idx, scenario_id,
+				external_ctrl->scenarios[external_ctrl->cur_scenario_idx].scenario_nm);
+			fimc_is_set_dvfs((struct fimc_is_core *)device->private_data, NULL, scenario_id);
+		}
+
+		mutex_unlock(&dvfs_ctrl->lock);
+	}
+#endif
 	mdbgd_sensor("%s(snesor id : %d, csi ch : %d, size : %d x %d)\n", device,
 		__func__,
 		module->sensor_id,
@@ -2626,8 +2669,22 @@ p_err:
 
 #if defined(CONFIG_PM_DEVFREQ)
 	if (test_bit(FIMC_IS_SENSOR_DRIVING, &device->state)) {
-		pm_qos_remove_request(&exynos_sensor_qos_cam);
-		pm_qos_remove_request(&exynos_sensor_qos_mem);
+		struct fimc_is_core *core = NULL;
+		int int_qos, mif_qos, cam_qos;
+
+		core = device->private_data;
+		dbg_resource("[RSC] %s: QoS UNLOCK\n", __func__);
+
+		int_qos = fimc_is_get_qos(core, FIMC_IS_DVFS_INT, FIMC_IS_SN_MAX);
+		mif_qos = fimc_is_get_qos(core, FIMC_IS_DVFS_MIF, FIMC_IS_SN_MAX);
+		cam_qos = fimc_is_get_qos(core, FIMC_IS_DVFS_CAM, FIMC_IS_SN_MAX);
+
+		if (int_qos > 0)
+			pm_qos_remove_request(&exynos_isp_qos_int);
+		if (mif_qos > 0)
+			pm_qos_remove_request(&exynos_isp_qos_mem);
+		if (cam_qos > 0)
+			pm_qos_remove_request(&exynos_isp_qos_cam);
 	}
 #endif
 

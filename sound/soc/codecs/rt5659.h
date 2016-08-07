@@ -1769,6 +1769,8 @@ struct rt5659_priv {
 	struct i2c_client *i2c;
 	struct delayed_work i2s_switch_slave_work[RT5659_AIFS];
 	struct delayed_work dac1_depop_work, dac2l_depop_work, dac2r_depop_work;
+	struct delayed_work calibrate_work;
+	struct mutex calibrate_mutex;
 
 	int aif_pu;
 	int sysclk;

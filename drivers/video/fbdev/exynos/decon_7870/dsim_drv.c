@@ -520,7 +520,7 @@ int dsim_read_data(struct dsim_device *dsim, u32 data_id,
 	case MIPI_DSI_RX_GENERIC_SHORT_READ_RESPONSE_1BYTE:
 	case MIPI_DSI_RX_GENERIC_SHORT_READ_RESPONSE_2BYTE:
 		dev_dbg(dsim->dev, "Short Packet was received from LCD module.\n");
-		for (i = 0; i <= count; i++)
+		for (i = 0; i < count; i++)
 			buf[i] = (rx_fifo >> (8 + i * 8)) & 0xff;
 		rx_size = count;
 		break;
@@ -530,6 +530,10 @@ int dsim_read_data(struct dsim_device *dsim, u32 data_id,
 		rx_size = (rx_fifo & 0x00ffff00) >> 8;
 		dev_dbg(dsim->dev, "rx fifo : %8x, response : %x, rx_size : %d\n",
 				rx_fifo, rx_fifo & 0xff, rx_size);
+		if (rx_size > count) {
+			dev_err(dsim->dev, "rx size is invalid, rx_size: %d, count: %d\n", rx_size, count);
+			rx_size = count;
+		}
 		/* Read data from RX packet payload */
 		for (i = 0; i < rx_size >> 2; i++) {
 			rx_fifo = readl(dsim->reg_base + DSIM_RXFIFO);

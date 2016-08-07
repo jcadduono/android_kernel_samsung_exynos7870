@@ -1397,7 +1397,7 @@ int sensor_4h5yc_cis_set_digital_gain(struct v4l2_subdev *subdev, struct ae_para
 		goto p_err;
 	}
 
-	dgains[0] = dgains[1] = dgains[2] = dgains[3] = short_gain;
+	dgains[0] = dgains[1] = dgains[2] = dgains[3] = long_gain;
 	/* Short digital gain */
 	ret = fimc_is_sensor_write16_array(client, 0x020E, dgains, 4);
 	if (ret < 0)
@@ -1744,7 +1744,7 @@ int cis_4h5yc_probe(struct i2c_client *client,
 
 	/* belows are depend on sensor cis. MUST check sensor spec */
 	cis->bayer_order = OTF_INPUT_ORDER_BAYER_GR_BG;
-	cis->aperture_num = F2_2;
+	cis->aperture_num = F1_9;
 	cis->use_dgain = true;
 	cis->hdr_ctrl_by_again = false;
 

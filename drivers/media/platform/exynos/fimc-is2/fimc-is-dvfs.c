@@ -77,8 +77,11 @@ int fimc_is_dvfs_init(struct fimc_is_resourcemgr *resourcemgr)
 	if (!(dvfs_ctrl->dynamic_ctrl))
 		dvfs_ctrl->dynamic_ctrl =
 			kzalloc(sizeof(struct fimc_is_dvfs_scenario_ctrl), GFP_KERNEL);
+	if (!(dvfs_ctrl->external_ctrl))
+		dvfs_ctrl->external_ctrl =
+			kzalloc(sizeof(struct fimc_is_dvfs_scenario_ctrl), GFP_KERNEL);
 
-	if (!dvfs_ctrl->static_ctrl || !dvfs_ctrl->dynamic_ctrl) {
+	if (!dvfs_ctrl->static_ctrl || !dvfs_ctrl->dynamic_ctrl || !dvfs_ctrl->external_ctrl) {
 		err("dvfs_ctrl alloc is failed!!\n");
 		return -ENOMEM;
 	}
@@ -278,6 +281,67 @@ int fimc_is_dvfs_sel_dynamic(struct fimc_is_device_ischain *device)
 	return  -EAGAIN;
 }
 
+int fimc_is_dvfs_sel_external(struct fimc_is_device_sensor *device)
+{
+	struct fimc_is_core *core;
+	struct fimc_is_dvfs_ctrl *dvfs_ctrl;
+	struct fimc_is_dvfs_scenario_ctrl *external_ctrl;
+	struct fimc_is_dvfs_scenario *scenarios;
+	struct fimc_is_resourcemgr *resourcemgr;
+	int i, scenario_id, scenario_cnt;
+	int position, resol, fps, stream_cnt;
+
+	BUG_ON(!device);
+
+	core = device->private_data;
+	resourcemgr = device->resourcemgr;
+	dvfs_ctrl = &(resourcemgr->dvfs_ctrl);
+	external_ctrl = dvfs_ctrl->external_ctrl;
+
+	if (!test_bit(FIMC_IS_DVFS_SEL_TABLE, &dvfs_ctrl->state)) {
+		err("dvfs table is NOT selected");
+		return -EINVAL;
+	}
+
+	/* external scenario */
+	if (!external_ctrl) {
+		warn("external_dvfs_ctrl is NULL, default max dvfs lv");
+		return FIMC_IS_SN_MAX;
+	}
+
+	scenarios = external_ctrl->scenarios;
+	scenario_cnt = external_ctrl->scenario_cnt;
+	position = fimc_is_sensor_g_position(device);
+	resol = fimc_is_sensor_g_width(device) * fimc_is_sensor_g_height(device);
+	fps = fimc_is_sensor_g_framerate(device);
+	stream_cnt = fimc_is_get_start_sensor_cnt(core);
+
+	for (i = 0; i < scenario_cnt; i++) {
+		if (!scenarios[i].ext_check_func) {
+			warn("check_func[%d] is NULL\n", i);
+			continue;
+		}
+
+		if ((scenarios[i].ext_check_func(device, position, resol, fps, stream_cnt)) > 0) {
+			scenario_id = scenarios[i].scenario_id;
+			external_ctrl->cur_scenario_id = scenario_id;
+			external_ctrl->cur_scenario_idx = i;
+			external_ctrl->cur_frame_tick = scenarios[i].keep_frame_tick;
+			return scenario_id;
+		}
+	}
+
+	warn("couldn't find external dvfs scenario [sensor:(%d/%d)/fps:%d/resol:(%d)]\n",
+		stream_cnt, position, fps, resol);
+
+	external_ctrl->cur_scenario_id = FIMC_IS_SN_MAX;
+	external_ctrl->cur_scenario_idx = -1;
+	external_ctrl->cur_frame_tick = -1;
+
+	return FIMC_IS_SN_MAX;
+}
+
+
 int fimc_is_get_qos(struct fimc_is_core *core, u32 type, u32 scenario_id)
 {
 	struct exynos_platform_fimc_is	*pdata = NULL;
@@ -305,21 +369,19 @@ int fimc_is_get_qos(struct fimc_is_core *core, u32 type, u32 scenario_id)
 	return qos;
 }
 
-int fimc_is_set_dvfs(struct fimc_is_device_ischain *device, u32 scenario_id)
+int fimc_is_set_dvfs(struct fimc_is_core *core, struct fimc_is_device_ischain *device, u32 scenario_id)
 {
 	int ret = 0;
 	int int_qos, mif_qos, i2c_qos, cam_qos, disp_qos;
-	struct fimc_is_core *core;
 	struct fimc_is_resourcemgr *resourcemgr;
 	struct fimc_is_dvfs_ctrl *dvfs_ctrl;
 
-	if (device == NULL) {
-		err("device is NULL\n");
+	if (core == NULL) {
+		err("core is NULL\n");
 		return -EINVAL;
 	}
 
-	core = (struct fimc_is_core *)device->interface->core;
-	resourcemgr = device->resourcemgr;
+	resourcemgr = &core->resourcemgr;
 	dvfs_ctrl = &(resourcemgr->dvfs_ctrl);
 
 	int_qos = fimc_is_get_qos(core, FIMC_IS_DVFS_INT, scenario_id);
@@ -336,7 +398,7 @@ int fimc_is_set_dvfs(struct fimc_is_device_ischain *device, u32 scenario_id)
 
 	/* check current qos */
 	if (int_qos && dvfs_ctrl->cur_int_qos != int_qos) {
-		if (i2c_qos) {
+		if (i2c_qos && device) {
 			ret = fimc_is_itf_i2c_lock(device, i2c_qos, true);
 			if (ret) {
 				err("fimc_is_itf_i2_clock fail\n");
@@ -347,7 +409,7 @@ int fimc_is_set_dvfs(struct fimc_is_device_ischain *device, u32 scenario_id)
 		pm_qos_update_request(&exynos_isp_qos_int, int_qos);
 		dvfs_ctrl->cur_int_qos = int_qos;
 
-		if (i2c_qos) {
+		if (i2c_qos && device) {
 			/* i2c unlock */
 			ret = fimc_is_itf_i2c_lock(device, i2c_qos, false);
 			if (ret) {
@@ -368,7 +430,7 @@ int fimc_is_set_dvfs(struct fimc_is_device_ischain *device, u32 scenario_id)
 	}
 
 	dbg("[RSC:%d]: New QoS [INT(%d), MIF(%d), CAM(%d), DISP(%d), I2C(%d)]\n",
-			device->instance, int_qos, mif_qos,
+			device ? device->instance : 0, int_qos, mif_qos,
 			cam_qos, disp_qos, i2c_qos);
 exit:
 	return ret;

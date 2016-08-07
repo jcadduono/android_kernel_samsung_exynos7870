@@ -97,7 +97,7 @@ static int fimc_is_hw_mcsc_handle_interrupt(u32 id, void *context)
 
 		if (frame == NULL) {
 			err_hw("[MCSC][F:%d] frame(null)!!", atomic_read(&hw_ip->fcount));
-			BUG_ON(1);
+			goto err_frame;
 		}
 
 		index = hw_ip->debug_index[1];
@@ -136,6 +136,7 @@ static int fimc_is_hw_mcsc_handle_interrupt(u32 id, void *context)
 		fimc_is_hardware_size_dump(hw_ip);
 	}
 
+err_frame:
 	fimc_is_scaler_clear_intr_src(hw_ip->regs, status);
 
 	if (status & (1 << INTR_MC_SCALER_FRAME_END))

@@ -13,14 +13,6 @@
 #ifndef SEC_DEBUG_H 
 #define SEC_DEBUG_H
 
-#include <soc/samsung/exynos-pmu.h>
-/* 
- * PMU register offset : MUST MODIFY ACCORDING TO SoC
- */
-#define EXYNOS_PMU_INFORM2 0x0808
-#define EXYNOS_PMU_INFORM3 0x080C
-#define EXYNOS_PMU_PS_HOLD_CONTROL 0x330C
-
 #ifdef CONFIG_SEC_DEBUG
 extern int  sec_debug_setup(void);
 extern void sec_debug_reboot_handler(void);
@@ -41,30 +33,38 @@ extern void sec_gaf_supply_rqinfo(unsigned short curr_offset, unsigned short rq_
 #define sec_debug_panic_handler(a,b)		do { } while(0)
 #define sec_debug_post_panic_handler()		do { } while(0)	
 
-#define sec_debug_get_debug_level()		0
+#define sec_debug_get_debug_level()		(0)
 #define sec_debug_disable_printk_process()	do { } while(0)
 
 #define sec_getlog_supply_kernel(a)		do { } while(0)
 #define sec_getlog_supply_platform(a,b)		do { } while(0)
 
-static inline void sec_gaf_supply_rqinfo(unsigned short curr_offset, unsigned short rq_offset)
-{
-    return;
-}
+#define sec_gaf_supply_rqinfo(a,b)		do { } while(0)
 #endif /* CONFIG_SEC_DEBUG */
 
 #ifdef CONFIG_SEC_DEBUG_MDM_SEPERATE_CRASH
 extern int  sec_debug_is_enabled_for_ssr(void);
-#endif
+else
+#define sec_debug_is_enabled_for_ssr()		(0)
+#endif /* CONFIG_SEC_DEBUG_MDM_SEPERATE_CRASH */
 
-/* sec logging */
+#ifdef CONFIG_SEC_DEBUG_LAST_KMSG
+#define SEC_LKMSG_MAGICKEY 0x0000000a6c6c7546
+extern void sec_debug_save_last_kmsg(unsigned char* head_ptr, unsigned char* curr_ptr, size_t buf_size);
+#else
+#define sec_debug_save_last_kmsg(a,b,c)		do { } while(0)
+#endif /* CONFIG_SEC_DEBUG_LAST_KMSG */
+
+
+/*
+ * Samsung TN Logging Options 
+ */
 #ifdef CONFIG_SEC_AVC_LOG
 extern void sec_debug_avc_log(char *fmt, ...);
 #else
-#define sec_debug_avc_log(a, ...)		do { } while(0)
-#endif
+#define sec_debug_avc_log(a,...)		do { } while(0)
+#endif /* CONFIG_SEC_AVC_LOG */
 
-#ifdef CONFIG_SEC_DEBUG_TSP_LOG
 /**
  * sec_debug_tsp_log : Leave tsp log in tsp_msg file.
  * ( Timestamp + Tsp logs )
@@ -72,6 +72,7 @@ extern void sec_debug_avc_log(char *fmt, ...);
  * add additional message between timestamp and tsp log.
  * ( Timestamp + additional Message + Tsp logs )
  */
+#ifdef CONFIG_SEC_DEBUG_TSP_LOG
 extern void sec_debug_tsp_log(char *fmt, ...);
 extern void sec_debug_tsp_log_msg(char *msg, char *fmt, ...);
 #if defined(CONFIG_TOUCHSCREEN_FTS)
@@ -79,26 +80,9 @@ extern void tsp_dump(void);
 #elif defined(CONFIG_TOUCHSCREEN_SEC_TS)
 extern void tsp_dump_sec(void);
 #endif
-
 #else
-#define sec_debug_tsp_log(a, ...)		do { } while(0)
-#endif
-
-#ifdef CONFIG_SEC_DEBUG_LAST_KMSG
-extern void sec_debug_save_last_kmsg(unsigned char* head_ptr, unsigned char* curr_ptr, size_t buf_size);
-#else
-#define sec_debug_save_last_kmsg(a, b, c)		do { } while(0)
-#endif
-
-/* Last KMsg magickey */
-#define SEC_LKMSG_MAGICKEY 0x0000000a6c6c7546
-
-#ifdef CONFIG_SEC_PARAM
-#define CM_OFFSET		0x700234
-#define CM_OFFSET_LIMIT		1
-#define GSP_OFFSET		0x700238
-#define GSP_OFFSET_LIMIT 	0
-int set_param(unsigned long offset, char val);
-#endif
+#define sec_debug_tsp_log(a,...)		do { } while(0)
+#define sec_debug_tsp_log_msg(a,b,...)		do { } while(0)
+#endif /* CONFIG_SEC_DEBUG_TSP_LOG */
 
 #endif /* SEC_DEBUG_H */

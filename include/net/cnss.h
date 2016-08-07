@@ -29,6 +29,10 @@ enum cnss_driver_status {
 	CNSS_LOAD_UNLOAD
 };
 
+#if 1 /* 20160327 AI 4 2 */
+extern int cnss_wlan_oob_shutdown(void);
+extern int cnss_wlan_check_hang(void);
+#endif /* 20160327 AI 4 2 */
 extern int cnss_wlan_register_driver(void);
 extern void cnss_wlan_unregister_driver(void);
 

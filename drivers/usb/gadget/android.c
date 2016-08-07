@@ -111,10 +111,10 @@ struct android_dev {
 	struct list_head enabled_functions;
 	struct usb_composite_dev *cdev;
 	struct device *dev;
-#ifndef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+
 	void (*setup_complete)(struct usb_ep *ep,
 				struct usb_request *req);
-#endif
+
 	bool enabled;
 	int disable_depth;
 	struct mutex mutex;
@@ -1954,10 +1954,10 @@ static int android_bind(struct usb_composite_dev *cdev)
 	int			id, ret;
 
 	printk(KERN_DEBUG "usb: %s disconnect\n", __func__);
-#ifndef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+
 	/* Save the default handler */
 	dev->setup_complete = cdev->req->complete;
-#endif
+
 	/*
 	 * Start disconnected. Userspace will connect the gadget once
 	 * it is done configuring the functions.
@@ -2015,15 +2015,6 @@ static int android_usb_unbind(struct usb_composite_dev *cdev)
 /* HACK: android needs to override setup for accessory to work */
 static int (*composite_setup_func)(struct usb_gadget *gadget, const struct usb_ctrlrequest *c);
 
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-static void android_gadget_complete(struct usb_ep *ep, struct usb_request *req)
-{
-	if (req->status || req->actual != req->length)
-		printk(KERN_DEBUG "usb: %s: %d, %d/%d\n", __func__,
-				req->status, req->actual, req->length);
-}
-#endif
-
 static int
 android_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *c)
 {
@@ -2036,14 +2027,8 @@ android_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *c)
 
 	req->zero = 0;
 	req->length = 0;
-#ifndef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
 	req->complete = dev->setup_complete;
-#endif
 	gadget->ep0->driver_data = cdev;
-
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-	req->complete = android_gadget_complete;
-#endif
 
 	list_for_each_entry(f, &dev->enabled_functions, enabled_list) {
 		if (f->ctrlrequest) {

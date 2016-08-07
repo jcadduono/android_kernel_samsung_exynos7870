@@ -656,7 +656,7 @@ static int dfscpu_set_ema(unsigned int volt)
 		ema_temp = (asv_tbl_info.cpu_cl_ema << 3) | (asv_tbl_info.cpu_cl_emaw << 1) | asv_tbl_info.cpu_cl_emas;
 		cpu_ema = (ema_temp << 12) | (ema_temp << 6) | ema_temp;
 		if (cpu_ema == 0)
-			cpu_ema = 0x1A69A;
+			cpu_ema = 0x1B6D2;
 		pwrcal_writel(CPUCL0_EMA_CON, cpu_ema);
 		pwrcal_writel(CPUCL1_EMA_CON, cpu_ema);
 		}

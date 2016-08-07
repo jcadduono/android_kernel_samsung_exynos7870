@@ -926,7 +926,8 @@ enum ae_state {
 	AE_STATE_FLASH_REQUIRED,
 	AE_STATE_PRECAPTURE,
 	AE_STATE_LOCKED_CONVERGED = 10,
-	AE_STATE_LOCKED_FLASH_REQUIRED
+	AE_STATE_LOCKED_FLASH_REQUIRED,
+	AE_STATE_SEARCHING_FLASH_REQUIRED,
 };
 
 enum awb_state {
@@ -1542,6 +1543,7 @@ enum camera_flash_mode {
 enum camera_op_mode {
 	CAMERA_OP_MODE_GED = 0,   // default
 	CAMERA_OP_MODE_TW,
+	CAMERA_OP_MODE_HAL3_GED,
 };
 
 struct camera2_companion_uctl {
