@@ -77,6 +77,7 @@ struct sec_fg_info {
 	int soc_arr_evt2[22];
 	int ocv_arr_evt2[22];
 	int batcap[4];
+	int fg_accumulative_rate_evt2[4];
 
 	/* miscellaneous */
 	unsigned long fullcap_check_interval;
@@ -92,6 +93,7 @@ struct s2mu005_platform_data {
 	int fuel_alert_soc;
 	int fullsocthr;
 	int fg_irq;
+	int fg_log_enable;
 
 	char *fuelgauge_name;
 

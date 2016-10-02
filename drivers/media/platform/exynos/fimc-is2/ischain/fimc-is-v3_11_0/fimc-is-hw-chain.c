@@ -757,6 +757,7 @@ bool fimc_is_has_mcsc(void)
 
 bool fimc_is_hw_frame_done_with_dma(void)
 {
-	return false; /* true after FIMC-IS V4.x */
+	/* HACK: 3AA DMA interrupt callback is skipped because preventing interrupt loss. */
+	return true; /* true after FIMC-IS V4.x */
 }
 

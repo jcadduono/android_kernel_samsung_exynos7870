@@ -45,6 +45,8 @@ static struct fimc_is_sensor_cfg config_module_5e3[] = {
 	FIMC_IS_SENSOR_CFG(1280, 960, 30, 19, 1, CSI_DATA_LANES_2),
 	/* 1280x960@15fps */
 	FIMC_IS_SENSOR_CFG(1280, 960, 15, 19, 2, CSI_DATA_LANES_2),
+	/* 640x480@116fps */
+	FIMC_IS_SENSOR_CFG(640, 480, 116, 19, 3, CSI_DATA_LANES_2),
 };
 
 static struct fimc_is_vci vci_module_5e3[] = {
@@ -184,10 +186,47 @@ static int sensor_module_5e3_power_setpin(struct platform_device *pdev,
 	}
 #endif
 
+#ifdef CONFIG_CAMERA_OTPROM_SUPPORT_FRONT
+	/* READ_ROM - POWER ON */
+	SET_PIN(pdata, SENSOR_SCENARIO_READ_ROM, GPIO_SCENARIO_ON, gpio_reset, "sen_rst low", PIN_OUTPUT, 0, 0);
+#ifdef CONFIG_SOC_EXYNOS7870
+	if (gpio_is_valid(gpio_sensor_a2p8_en)) {
+		SET_PIN(pdata, SENSOR_SCENARIO_READ_ROM, GPIO_SCENARIO_ON, gpio_sensor_a2p8_en, "sensor_a2p8_en", PIN_OUTPUT, 1, 1000);
+	} else {
+		SET_PIN(pdata, SENSOR_SCENARIO_READ_ROM, GPIO_SCENARIO_ON, gpio_none, "VDD_CAM_SENSOR_A2P8", PIN_REGULATOR, 1, 1000);
+	}
+	SET_PIN(pdata, SENSOR_SCENARIO_READ_ROM, GPIO_SCENARIO_ON, gpio_vtcam_1p2_en, "vtcam_1p2_en", PIN_OUTPUT, 1, 1000);
+	if (gpio_is_valid(gpio_vtcam_1p8_en)) {
+		SET_PIN(pdata, SENSOR_SCENARIO_READ_ROM, GPIO_SCENARIO_ON, gpio_vtcam_1p8_en, "vtcam_1p8_en", PIN_OUTPUT, 1, 0);
+	} else {
+		SET_PIN(pdata, SENSOR_SCENARIO_READ_ROM, GPIO_SCENARIO_ON, gpio_camio_1p8_en, "camio_1p8_en", PIN_OUTPUT, 1, 1000);
+	}
+#endif
+	SET_PIN(pdata, SENSOR_SCENARIO_READ_ROM, GPIO_SCENARIO_ON, gpio_reset, "sen_rst high", PIN_OUTPUT, 1, 0);
+	SET_PIN(pdata, SENSOR_SCENARIO_READ_ROM, GPIO_SCENARIO_ON, gpio_none, "pin", PIN_FUNCTION, 1, 0);
+
+	/* READ_ROM - POWER OFF */
+	SET_PIN(pdata, SENSOR_SCENARIO_READ_ROM, GPIO_SCENARIO_OFF, gpio_none, "pin", PIN_FUNCTION, 0, 0);
+	SET_PIN(pdata, SENSOR_SCENARIO_READ_ROM, GPIO_SCENARIO_OFF, gpio_reset, "sen_rst low", PIN_OUTPUT, 0, 0);
+#ifdef CONFIG_SOC_EXYNOS7870
+	if (gpio_is_valid(gpio_vtcam_1p8_en)) {
+		SET_PIN(pdata, SENSOR_SCENARIO_READ_ROM, GPIO_SCENARIO_OFF, gpio_vtcam_1p8_en, "vtcam_1p8_en", PIN_OUTPUT, 0, 1000);
+	} else {
+		SET_PIN(pdata, SENSOR_SCENARIO_READ_ROM, GPIO_SCENARIO_OFF, gpio_camio_1p8_en, "camio_1p8_en", PIN_OUTPUT, 0, 1000);
+	}
+	SET_PIN(pdata, SENSOR_SCENARIO_READ_ROM, GPIO_SCENARIO_OFF, gpio_vtcam_1p2_en, "vtcam_1p2_en", PIN_OUTPUT, 0, 1000);
+	if (gpio_is_valid(gpio_sensor_a2p8_en)) {
+		SET_PIN(pdata, SENSOR_SCENARIO_READ_ROM, GPIO_SCENARIO_OFF, gpio_sensor_a2p8_en, "sensor_a2p8_en", PIN_OUTPUT, 0, 0);
+	} else {
+		SET_PIN(pdata, SENSOR_SCENARIO_READ_ROM, GPIO_SCENARIO_OFF, gpio_none, "VDD_CAM_SENSOR_A2P8", PIN_REGULATOR, 0, 0);
+	}
+#endif
+#else
 	/* READ_ROM - POWER ON */
 	SET_PIN(pdata, SENSOR_SCENARIO_READ_ROM, GPIO_SCENARIO_ON, gpio_camio_1p8_en, "camio_1p8_en", PIN_OUTPUT, 1, 0);
 	/* READ_ROM - POWER OFF */
 	SET_PIN(pdata, SENSOR_SCENARIO_READ_ROM, GPIO_SCENARIO_OFF, gpio_camio_1p8_en, "camio_1p8_en", PIN_OUTPUT, 0, 0);
+#endif
 	dev_info(dev, "%s X v4\n", __func__);
 
 	return 0;
@@ -243,7 +282,7 @@ int sensor_module_5e3_probe(struct platform_device *pdev)
 	module->margin_bottom = 0;
 	module->pixel_width = module->active_width;
 	module->pixel_height = module->active_height;
-	module->max_framerate = 30;
+	module->max_framerate = 120;
 	module->position = pdata->position;
 	module->mode = CSI_MODE_DT_ONLY;
 	module->lanes = CSI_DATA_LANES_2;

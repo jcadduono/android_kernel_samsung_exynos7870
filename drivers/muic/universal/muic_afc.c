@@ -38,6 +38,10 @@
 #define	REG_AFCTXD	0x19
 #define	REG_VBUSSTAT	0x1b
 
+#if defined(CONFIG_MUIC_UNIVERSAL_SM5705_AFC_QC20)
+#define	REG_AFCSTAT	0x1A
+#endif
+
 muic_data_t *gpmuic;
 static int afc_work_state;
 
@@ -190,6 +194,9 @@ int muic_dpreset_afc(void)
 
 		// DP_RESET
 		pr_info("%s:AFC Disable \n", __func__);
+#if defined(CONFIG_MUIC_UNIVERSAL_SM5705_AFC_QC20)
+		afcops->afc_ctrl_reg(gpmuic->regmapdesc, AFCCTRL_ENQC20, 0);
+#endif
 		afcops->afc_ctrl_reg(gpmuic->regmapdesc, AFCCTRL_DIS_AFC, 1);
 		msleep(20);
 		afcops->afc_ctrl_reg(gpmuic->regmapdesc, AFCCTRL_DIS_AFC, 0);
@@ -225,6 +232,13 @@ static int muic_restart_afc(void)
 		printk(KERN_ERR "[muic] %s: err write AFC_TXD(%d)\n", __func__, ret);
 	pr_info("%s:AFC_TXD [0x%02x]\n", __func__, value);
 
+#if defined(CONFIG_MUIC_UNIVERSAL_SM5705_AFC_QC20)
+	ret = muic_i2c_read_byte(i2c, REG_AFCSTAT);
+	if (ret < 0)
+		printk(KERN_ERR "%s: err read AFC_STATUS %d\n", __func__, ret);
+	pr_info("%s:%s AFC_STATUS [0x%02x]\n",MUIC_DEV_NAME, __func__, ret);
+#endif
+
 	// ENAFC set '1'
 	afcops->afc_ctrl_reg(gpmuic->regmapdesc, AFCCTRL_ENAFC, 1);
 
@@ -255,6 +269,13 @@ static void muic_afc_restart_work(struct work_struct *work)
 		printk(KERN_ERR "[muic] %s: err write AFC_TXD(%d)\n", __func__, ret);
 	pr_info("%s:AFC_TXD [0x%02x]\n", __func__, value);
 
+#if defined(CONFIG_MUIC_UNIVERSAL_SM5705_AFC_QC20)
+	ret = muic_i2c_read_byte(i2c, REG_AFCSTAT);
+	if (ret < 0)
+		printk(KERN_ERR "%s: err read AFC_STATUS %d\n", __func__, ret);
+	pr_info("%s:%s AFC_STATUS [0x%02x]\n",MUIC_DEV_NAME, __func__, ret);
+#endif
+
 	// ENAFC set '1'
 	afcops->afc_ctrl_reg(gpmuic->regmapdesc, AFCCTRL_ENAFC, 1);
 	afc_work_state = 0;
@@ -275,7 +296,10 @@ static void muic_afc_retry_work(struct work_struct *work)
 			muic_notifier_attach_attached_dev(ATTACHED_DEV_NONE_MUIC);
 			return;
 		}		
-		
+
+#if defined(CONFIG_MUIC_UNIVERSAL_SM5705_AFC_QC20)
+		afcops->afc_ctrl_reg(gpmuic->regmapdesc, AFCCTRL_ENQC20, 0);
+#endif
 		pr_info("%s: [MUIC] devtype is afc prepare - Disable AFC\n", __func__);
 		afcops->afc_ctrl_reg(gpmuic->regmapdesc, AFCCTRL_DIS_AFC, 1);
 		msleep(20);

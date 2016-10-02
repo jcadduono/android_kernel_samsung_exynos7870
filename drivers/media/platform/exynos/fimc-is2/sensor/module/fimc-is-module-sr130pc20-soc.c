@@ -357,6 +357,7 @@ void sr130pc20_regs_table_exit(void)
 	}
 }
 
+#if !defined(CONFIG_LOAD_FILE)
 static bool sr130pc20_is_hexnum(char *num)
 {
 	int i = 0;
@@ -370,6 +371,8 @@ static bool sr130pc20_is_hexnum(char *num)
 
 	return true;
 }
+#endif
+
 static int sr130pc20_write_regs_from_sd(struct v4l2_subdev *sd, const char *name)
 {
 	char *start = NULL, *end = NULL, *reg = NULL, *temp_start = NULL;
@@ -1014,11 +1017,17 @@ static int sr130pc20_set_vt_mode(struct v4l2_subdev *subdev, int vt_mode)
 int sensor_sr130pc20_stream_on(struct v4l2_subdev *subdev)
 {
 	int ret = 0;
+	struct sr130pc20_state *state = to_state(subdev);
 
-	cam_info("stream on\n");
+	cam_info("stream on - Mode check = %d\n", state->runmode);
 
 	ret = sensor_sr130pc20_apply_set(subdev, "sr130pc20_start_stream",
 		&sr130pc20_regset_table.start_stream);
+
+	if(state->runmode == RUNMODE_RECORDING_STOP) {
+		cam_info("RECORDING STOP MINIMUM DELAY 450\n");
+		msleep(450);
+	}
 
 	return ret;
 }
@@ -1124,25 +1133,21 @@ static inline int sr130pc20_get_exif_iso(struct v4l2_subdev *subdev, u16 *iso)
 	struct i2c_client *client = to_client(subdev);
 	int err = 0;
 	u8 read_value = 0;
-	unsigned short gain_value = 0;
 
 	err = fimc_is_sr130pc20_write8(client, 0x03, 0x20);
 	CHECK_ERR_COND(err < 0, -ENODEV);
 	fimc_is_sr130pc20_read8(client, 0xb0, &read_value);
 
-	gain_value = ((read_value * 100) / 32) + 50;
-	cam_dbg("iso : gain_value=%d, read_value=%d\n", gain_value, read_value);
+	cam_dbg("iso : read_value=%d\n", read_value);
 
-	if (gain_value < 114)
+	if (read_value < 0x15)
 		*iso = 50;
-	else if (gain_value < 214)
+	else if (read_value < 0x35)
 		*iso = 100;
-	else if (gain_value < 264)
+	else if (read_value < 0x45)
 		*iso = 200;
-	else if (gain_value < 752)
-		*iso = 400;
 	else
-		*iso = 800;
+		*iso = 400;
 
 	cam_dbg("ISO=%d\n", *iso);
 	return 0;

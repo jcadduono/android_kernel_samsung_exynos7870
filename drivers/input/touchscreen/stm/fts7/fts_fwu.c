@@ -107,7 +107,7 @@ bool get_PureAutotune_status(struct fts_ts_info *info)
 }
 EXPORT_SYMBOL(get_PureAutotune_status);
 
-static bool get_AFE_status(struct fts_ts_info *info)
+bool get_AFE_status(struct fts_ts_info *info)
 {
 	int rc;
 	unsigned char regAdd[3];
@@ -374,6 +374,7 @@ static int fts_fw_burn_stm7(struct fts_ts_info *info, unsigned char *fw_data)
 	return 0;
 }
 
+#ifdef FTS_SUPPORT_SYSTEM_STATUS
 static int fts_get_system_status(struct fts_ts_info *info, unsigned char *val1, unsigned char *val2)
 {
 	bool rc = -1;
@@ -432,6 +433,7 @@ static int fts_get_system_status(struct fts_ts_info *info, unsigned char *val1, 
 	}
 	return rc;
 }
+#endif
 
 int fts_fw_wait_for_event(struct fts_ts_info *info, unsigned char eid)
 {
@@ -605,16 +607,7 @@ void fts_execute_autotune(struct fts_ts_info *info)
 
 	if (bFinalAFE) {
 #ifdef CONFIG_SEC_FACTORY
-		tsp_debug_info(true, info->dev, "%s: AFE_status(%d) write ( C1 0E )\n", __func__,bFinalAFE);
-		regData[0] = 0xC1;
-		regData[1] = 0x0E;
-		ret = info->fts_write_reg(info, regData, 2);//write C1 0E
-		if (ret < 0)
-			tsp_debug_info(true, info->dev, "%s: Flash Back up PureAutotune Fail(Set)\n", __func__);
-
-		msleep(20);
-		if(info->stm_format_ver != STM_FORMAT_VER6)
-			fts_fw_wait_for_event(info, STATUS_EVENT_PURE_AUTOTUNE_FLAG_WRITE_FINISH);
+		//Do not set pat flag 
 #else
 		if (NoNeedAutoTune && (info->o_afe_ver!=info->afe_ver))
 		{
@@ -802,6 +795,7 @@ EXPORT_SYMBOL(fts_fw_updater);
 #define FW_IMAGE_NAME_MATISSE			"tsp_stm/matisse.fw"
 #define FW_IMAGE_NAME_GTAXL			"tsp_stm/stm_gtaxl.fw"
 #define FW_IMAGE_NAME_GTAXL_REV03			"tsp_stm/fts1a096_gtaxl_rev03.fw"
+#define FW_IMAGE_NAME_GTAXL_NOTE			"tsp_stm/fts1a096_gtaxl_note.fw"
 
 #define CONFIG_ID_D1_S				0x2C
 #define CONFIG_ID_D2_TR				0x2E
@@ -856,8 +850,11 @@ int fts_fw_update_on_probe(struct fts_ts_info *info)
 	unsigned char *fw_data = NULL;
 	char fw_path[FTS_MAX_FW_PATH];
 	const struct fts64_header *header;
-	unsigned char SYS_STAT[2] = {0, };
 	int tspid2 = 0;
+	bool fpat = false;
+#ifdef FTS_SUPPORT_SYSTEM_STATUS
+	unsigned char SYS_STAT[2] = {0, };
+#endif
 
 /*
 	if (info->board->firmware_name){
@@ -885,6 +882,13 @@ int fts_fw_update_on_probe(struct fts_ts_info *info)
 	else if((strncmp(info->board->project_name, "matisse", 7) == 0)){
 		tsp_debug_err(true, info->dev,"%s:FTS7AD56 - MATISSE\n", __func__);
 		info->firmware_name = FW_IMAGE_NAME_MATISSE;
+		if (info->board->firmware_name){
+			tsp_debug_err(true, info->dev,"%s:firmware name exgist in dts\n", __func__);
+			info->firmware_name = info->board->firmware_name;
+		}
+	}else if((strncmp(info->board->project_name, "gtaxl_note", 10) == 0)){
+		tsp_debug_err(true, info->dev,"%s:FTS1A096 - GTAXL NOTE\n", __func__);
+		info->firmware_name = FW_IMAGE_NAME_GTAXL_NOTE;
 		if (info->board->firmware_name){
 			tsp_debug_err(true, info->dev,"%s:firmware name exgist in dts\n", __func__);
 			info->firmware_name = info->board->firmware_name;
@@ -970,8 +974,20 @@ int fts_fw_update_on_probe(struct fts_ts_info *info)
 	else
 		retval = FTS_NOT_ERROR;
 
+#ifdef FTS_SUPPORT_SYSTEM_STATUS
 	if (fts_get_system_status(info, &SYS_STAT[0], &SYS_STAT[1]) >= 0) {
 		if (SYS_STAT[0] != SYS_STAT[1]) {
+			info->fts_systemreset(info);
+			msleep(20);
+			info->fts_wait_for_ready(info);
+			fts_fw_init(info);
+		}
+	}
+#endif
+
+	if(info->stm_format_ver == STM_FORMAT_VER6) {
+		fpat = get_PureAutotune_status(info);
+		if(!fpat) {
 			info->fts_systemreset(info);
 			msleep(20);
 			info->fts_wait_for_ready(info);

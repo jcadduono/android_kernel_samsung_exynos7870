@@ -102,6 +102,7 @@
 #define FW_IMX240_C		"C16LS"
 #define FW_IMX240_Q		"H16US"
 #define FW_IMX240_Q_C1		"H16UL"
+#define FW_IMX258		"W13LS"
 #define FW_IMX260		"C12LS"
 #define FW_2P2_12M		"G16LL"
 #define FW_4H5			"F08LL"
@@ -118,6 +119,7 @@
 #define FIMC_IS_FW_3P3				"fimc_is_lib.bin"
 #define FIMC_IS_FW_SR544			"fimc_is_lib.bin"
 #define FIMC_IS_FW_4H5YC			"fimc_is_lib.bin"
+#define FIMC_IS_FW_IMX258			"fimc_is_lib.bin"
 #else
 #define FIMC_IS_FW_3L2				"fimc_is_fw2_3l2.bin"
 #define FIMC_IS_FW_3P3				"fimc_is_fw2_3p3.bin"
@@ -141,6 +143,7 @@
 #define FIMC_IS_FW_COMPANION_IMX228_EVT1				"companion_fw_imx228_evt1.bin"
 /*#define FIMC_IS_FW_SDCARD			"/data/media/0/fimc_is_fw.bin" */
 #define FIMC_IS_IMX260_SETF			"setfile_imx260.bin"
+#define FIMC_IS_IMX258_SETF			"setfile_imx258.bin"
 #define FIMC_IS_IMX240_SETF			"setfile_imx240.bin"
 #define FIMC_IS_IMX228_SETF			"setfile_imx228.bin"
 #define FIMC_IS_IMX135_SETF			"setfile_imx135.bin"
@@ -185,6 +188,7 @@
 #define FIMC_IS_CAL_MAP_VER_SIZE     4
 #define FIMC_IS_PROJECT_NAME_SIZE    8
 #define FIMC_IS_ISP_SETFILE_VER_SIZE 6
+#define FIMC_IS_MODULE_ID_SIZE       10
 
 #if defined(CONFIG_CAMERA_EEPROM_SUPPORT_OIS)
 #define FIMC_IS_OIS_CAL_VER_SIZE     4
@@ -253,6 +257,7 @@ struct fimc_is_from_info {
 	char		load_fw_name[50];
 	char		load_setfile_name[50];
 	char		project_name[FIMC_IS_PROJECT_NAME_SIZE + 1];
+	u8		module_id[FIMC_IS_MODULE_ID_SIZE + 1];
 	bool		is_caldata_read;
 	bool		is_check_cal_reload;
 #ifdef CONFIG_COMPANION_USE

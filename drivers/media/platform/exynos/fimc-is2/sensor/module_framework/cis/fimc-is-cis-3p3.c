@@ -1410,19 +1410,11 @@ int sensor_3p3_cis_set_digital_gain(struct v4l2_subdev *subdev, struct ae_param 
 		goto p_err;
 	}
 
-	dgains[0] = dgains[1] = dgains[2] = dgains[3] = short_gain;
-	/* Short digital gain */
+	dgains[0] = dgains[1] = dgains[2] = dgains[3] = long_gain;
+	/* Long digital gain */
 	ret = fimc_is_sensor_write16_array(client, 0x020E, dgains, 4);
 	if (ret < 0)
 		goto p_err;
-
-	/* Long digital gain */
-	if (cis_data->companion_data.enable_wdr == true) {
-		dgains[0] = dgains[1] = dgains[2] = dgains[3] = long_gain;
-		ret = fimc_is_sensor_write16_array(client, 0x3062, dgains, 4);
-		if (ret < 0)
-			goto p_err;
-	}
 
 #ifdef DEBUG_SENSOR_TIME
 	do_gettimeofday(&end);

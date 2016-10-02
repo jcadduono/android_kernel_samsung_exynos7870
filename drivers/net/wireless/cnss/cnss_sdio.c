@@ -1288,6 +1288,14 @@ void cnss_wlan_unregister_driver(void)
 }
 EXPORT_SYMBOL(cnss_wlan_unregister_driver);
 
+void cnss_wlan_force_ldo_reset(void)
+{
+	gpio_set_value(15, 0);
+	msleep(100);
+	gpio_set_value(15, 1);
+}
+EXPORT_SYMBOL(cnss_wlan_force_ldo_reset);
+
 int cnss_sdio_probe(struct platform_device *pdev)
 {
 	int ret = 0;

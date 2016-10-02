@@ -142,6 +142,8 @@ static void sec_vib_work(struct work_struct *work)
 	struct sec_vib_drvdata *ddata = 
 		container_of(work, struct sec_vib_drvdata, work);
 
+	printk("[VIB] %s, timedout = %d , running = %d \n", __func__, ddata->timeout, ddata->running );
+
 	if (ddata->timeout > 0) {
 		if (ddata->running)
 			return;

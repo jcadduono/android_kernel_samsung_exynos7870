@@ -1,8 +1,3 @@
-# Three line added by Make.sh, original Makefile backup to Makefile.original
-ifeq ($(WIFI_BUILD_ONLY),y)
-	include $(KDIR)/.config
-endif
-
 # bcmdhd
 #####################
 # SDIO Basic feature
@@ -33,9 +28,14 @@ DHDCFLAGS += -DDHD_TRACE_WAKE_LOCK
 DHDCFLAGS += -DBCMASSERT_LOG
 # Collect Current Assoc/Reject Status for Big Data logging
 DHDCFLAGS += -DDHD_ENABLE_BIGDATA_LOGGING
+# Enable SI utility error log
+DHDCFLAGS += -DSI_ERROR_ENFORCE
 
 # Print 8021X
 DHDCFLAGS += -DDHD_8021X_DUMP
+
+# Print DHCP
+DHDCFLAGS += -DDHD_DHCP_DUMP
 
 # VSDB
 DHDCFLAGS += -DVSDB
@@ -126,7 +126,8 @@ DHDCFLAGS += -DDHD_USE_IDLECOUNT
 # Used short dwell time during initial scan
 DHDCFLAGS += -DUSE_INITIAL_SHORT_DWELL_TIME
 
-# Japan ccode revision will be fixed by nvram's value
+# Korea and Japan ccode revision will be fixed by nvram's value
+DHDCFLAGS += -DKEEP_KR_REGREV
 DHDCFLAGS += -DKEEP_JP_REGREV
 
 # SKB TAILPAD to avoid out of boundary memory access
@@ -143,7 +144,8 @@ DHDCFLAGS += -DUSE_WFA_CERT_CONF
 # Does not forword internal packet
 DHDCFLAGS += -DDHD_DONOT_FORWARD_BCMEVENT_AS_NETWORK_PKT
 
-
+# Customer scan timeout setting
+DHDCFLAGS += -DCUSTOMER_SCAN_TIMEOUT_SETTING
 
 ##############################
 # Android Platform Definition
@@ -504,6 +506,10 @@ endif
   DHDCFLAGS += -DCUSTOM_ROAM_TIME_THRESH_IN_SUSPEND=6000
   DHDCFLAGS += -DMAX_DTIM_ALLOWED_INTERVAL=925
 
+ifeq ($(CONFIG_WLAN_ON7),y)
+  DHDCFLAGS += -DDHD_SUPPORT_TR_212
+endif
+
   # Remove common feature for BCM4343
   DHDCFLAGS :=$(filter-out -DDISABLE_11H_SOFTAP,$(DHDCFLAGS))
   DHDCFLAGS :=$(filter-out -DSUPPORT_P2P_GO_PS,$(DHDCFLAGS))
@@ -570,6 +576,7 @@ ifeq ($(CONFIG_SLP),y)
   DHDCFLAGS += -DPLATFORM_SLP -DWRITE_MACADDR
   DHDCFLAGS += -DSUPPORT_MULTIPLE_CHIPS
   DHDCFLAGS += -USUPPORT_MULTIPLE_REVISION -UCONFIG_HAS_WAKELOCK
+  DHDCFLAGS += -DREMOVE_P2PIE_BEFORE_DELIF
 endif
 
 # GGSM_WIFI_5GHz_CHANNELS feature is define for only GGSM model
@@ -602,6 +609,10 @@ ifneq ($(CONFIG_SOC_EXYNOS7870),)
 DHDCFLAGS += -DDHD_OF_SUPPORT
 DHDCFLAGS += -Wno-date-time
 endif
+ifneq ($(CONFIG_SOC_EXYNOS7420),)
+DHDCFLAGS += -DDHD_OF_SUPPORT
+DHDCFLAGS += -Wno-date-time
+endif
 endif
 
 ##############################################################
@@ -613,7 +624,7 @@ DHDCFLAGS += -include "dhd_sec_feature.h"
 # Others
 #########
 
-EXTRA_LDFLAGS += --strip-debug
+#EXTRA_LDFLAGS += --strip-debug
 
 EXTRA_CFLAGS += $(DHDCFLAGS) -DDHD_DEBUG
 EXTRA_CFLAGS += -DSRCBASE=\"$(src)\"

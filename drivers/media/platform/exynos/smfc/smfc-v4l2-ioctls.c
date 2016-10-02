@@ -17,6 +17,7 @@
 #define V4L2_CID_JPEG_SEC_COMP_QUALITY	(V4L2_CID_JPEG_CLASS_BASE + 20)
 #define V4L2_CID_JPEG_QTABLES2		(V4L2_CID_JPEG_CLASS_BASE + 22)
 #define V4L2_CID_JPEG_HWFC_ENABLE	(V4L2_CID_JPEG_CLASS_BASE + 25)
+#define V4L2_CID_JPEG_MAX_PERF		(V4L2_CID_JPEG_CLASS_BASE + 26)
 
 #define SMFC_FMT_MAIN_SIZE(val) ((val) & 0xFFFF)
 #define SMFC_FMT_SEC_SIZE(val) (((val) >> 16) & 0xFFFF)
@@ -321,6 +322,14 @@ static int smfc_s_ctrl(struct v4l2_ctrl *ctrl)
 		 */
 		ctx->quality_factor = 0;
 		break;
+	case V4L2_CID_JPEG_MAX_PERF:
+		/* set the dvfs level of clock for jpeg */
+		if(ctrl->val != 0)
+			pm_qos_update_request(&ctx->smfc->qosreq_int,
+					ctx->smfc->qosreq_int_level);
+		else
+			pm_qos_update_request(&ctx->smfc->qosreq_int, 0);
+		break;
 	default:
 		dev_err(ctx->smfc->dev, "Unsupported CID %#x\n", ctrl->id);
 		return -EINVAL;
@@ -407,6 +416,20 @@ int smfc_init_controls(struct smfc_dev *smfc,
 	ctx->ctrl_qtbl2 = v4l2_ctrl_new_custom(hdlr, &ctrlcfg, NULL);
 	if (!ctx->ctrl_qtbl2) {
 		msg = "Q-Table";
+		goto err;
+	}
+
+	memset(&ctrlcfg, 0, sizeof(ctrlcfg));
+	ctrlcfg.ops = &smfc_ctrl_ops;
+	ctrlcfg.id = V4L2_CID_JPEG_MAX_PERF;
+	ctrlcfg.name = "JPEG Max performance configuration";
+	ctrlcfg.type = V4L2_CTRL_TYPE_BOOLEAN;
+	ctrlcfg.min = 0;
+	ctrlcfg.max = 1;
+	ctrlcfg.step = 1;
+	ctrlcfg.def = 0;
+	if (!v4l2_ctrl_new_custom(hdlr, &ctrlcfg, NULL)) {
+		msg = "jpeg max performance";
 		goto err;
 	}
 

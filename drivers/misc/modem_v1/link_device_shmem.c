@@ -39,6 +39,7 @@
 #include "modem_utils.h"
 #include "link_device_memory.h"
 #include "link_ctrlmsg_iosm.h"
+#include <linux/modem_notifier.h>
 
 
 #ifdef GROUP_MEM_LINK_COMMAND
@@ -186,6 +187,9 @@ static void shmem_handle_cp_crash(struct mem_link_device *mld,
 
 	stop_net_ifaces(ld);
 	purge_txq(mld);
+
+	if (cp_online(mc))
+		modem_notify_event(state);
 
 	if (cp_online(mc) || cp_booting(mc))
 		set_modem_state(mld, state);
@@ -1698,9 +1702,12 @@ static int shmem_xmit_boot(struct link_device *ld, struct io_device *iod,
 
 	/**
 	 * Check the size of the boot image
+	 * fix the integer overflow of "mf.m_offset + mf.len" from Jose Duart
 	 */
-	if (mf.size > valid_space) {
-		mif_err("%s: ERR! Invalid binary size %d\n", ld->name, mf.size);
+	if (mf.size > valid_space || mf.len > valid_space
+			|| mf.m_offset > valid_space - mf.len) {
+		mif_err("%s: ERR! Invalid args: size %x, offset %x, len %x\n",
+			ld->name, mf.size, mf.m_offset, mf.len);
 		return -EINVAL;
 	}
 
@@ -1940,9 +1947,9 @@ static inline u16 read_ap2cp_irq(struct mem_link_device *mld)
 	return mbox_get_value(MCU_CP, mld->mbx_ap2cp_msg);
 }
 
-#define SHMEM_SRINFO_OFFSET 0xF00 /* 4KB - 0x100 */
-#define SHMEM_SRINFO_SBD_OFFSET 0xFF00 /* 64KB - 0x100 */
-#define SHMEM_SRINFO_SIZE 0x100
+#define SHMEM_SRINFO_OFFSET 0x800 /* 4KB - 2KB */
+#define SHMEM_SRINFO_SBD_OFFSET 0xF800 /* 64KB - 2KB */
+#define SHMEM_SRINFO_SIZE 0x800
 #define SHMEM_SRINFO_DATA_STR 64
 
 struct shmem_srinfo {
@@ -1967,25 +1974,6 @@ static int shmem_ioctl(struct link_device *ld, struct io_device *iod,
 	mif_info("%s: cmd 0x%08X\n", ld->name, cmd);
 
 	switch (cmd) {
-	case IOCTL_MODEM_GET_SHMEM_INFO:
-	{
-		struct shdmem_info mem_info;
-		void __user *dst;
-		unsigned long size;
-
-		mif_info("%s: IOCTL_MODEM_GET_SHMEM_INFO\n", ld->name);
-
-		mem_info.base = shm_get_phys_base();
-		mem_info.size = shm_get_phys_size();
-		dst = (void __user *)arg;
-		size = sizeof(struct shdmem_info);
-
-		if (copy_to_user(dst, &mem_info, size))
-			return -EFAULT;
-
-		break;
-	}
-
 	case IOCTL_MODEM_GET_SHMEM_SRINFO:
 	{
 		struct shmem_srinfo __user *sr_arg =

@@ -339,7 +339,7 @@ int fimc_is_sensor_write16_array(struct i2c_client *client,
 	}
 
 	if (num > MAX_BURST) {
-		pr_err("currently limit max num is 4, need to fix it!\n");
+		pr_err("currently limit max num is %d, need to fix it!\n", MAX_BURST);
 		ret = -ENODEV;
 		goto p_err;
 	}

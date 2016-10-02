@@ -90,6 +90,14 @@ config SEC_DEBUG_TSP_LOG
 	help
 	  This option enables additional log buffer for tsp log.
 
+config SEC_DEBUG_PMIC
+	default n
+	bool "Enable pmic debug option support" if EMBEDDED
+	depends on SEC_EXT
+	help
+	  This option enables additional debug option for pmic.
+	  Enable this option for eng build only.
+
 comment "Samsung TN Power Management Options"
 menuconfig SEC_PM
 	bool "Samsung TN Power Management"

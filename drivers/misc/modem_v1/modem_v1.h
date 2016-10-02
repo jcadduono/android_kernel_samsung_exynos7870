@@ -524,6 +524,13 @@ struct modem_boot_spi {
 			return -EINVAL; \
 		dest = val; \
 	} while (0)
+
+#define mif_dt_read_u32_noerr(np, prop, dest) \
+	do { \
+		u32 val; \
+		if (!of_property_read_u32(np, prop, &val)) \
+			dest = val; \
+	} while (0)
 #endif
 
 #define LOG_TAG	"mif: "

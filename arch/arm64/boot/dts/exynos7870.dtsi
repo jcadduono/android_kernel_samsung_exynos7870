@@ -499,7 +499,7 @@
 		use_reg_dummy = "false";
 		reg_name = "BUCK2";
 		/* cold, cold_limit, min_cold, max_uV */
-		volt_info = <37500 1250000 0 1300000>;
+		volt_info = <25000 1250000 0 1300000>;
 
 		use_tmu = "true";
 		use_cl_dvfs = "false";
@@ -541,7 +541,7 @@
 		use_reg_dummy = "false";
 		reg_name = "BUCK2";
 		/* <cold, cold_limit, min_cold, max_uV> */
-		volt_info = <37500 1250000 0 1300000>;
+		volt_info = <25000 1250000 0 1300000>;
 
 		use_tmu = "true";
 		use_cl_dvfs = "false";
@@ -581,7 +581,7 @@
 		use_reg_dummy = "false";
 		reg_name = "BUCK2";
 		/* cold, cold_limit, min_cold, max_uV */
-		volt_info = <37500 1250000 0 1300000>;
+		volt_info = <25000 1250000 0 1300000>;
 
 		use_tmu = "true";
 		use_cl_dvfs = "false";
@@ -621,7 +621,7 @@
 		use_reg_dummy = "true";
 		reg_name = "BUCK2";
 		/* cold, cold_limit, min_cold, max_uV */
-		volt_info = <37500 1250000 0 1300000>;
+		volt_info = <25000 1250000 0 1300000>;
 
 		use_tmu = "true";
 		use_cl_dvfs = "false";
@@ -1056,10 +1056,11 @@
 			reg = <0x0 0x13460000 0x1000>;
 			interrupts = <0 229 0>;
 			clocks = <&clock 333>;
-			clock-names = "apb_pclk";
+			clock-names = "fp-spi-dma";
 			#dma-cells = <1>;
 			#dma-channels = <4>;
 			#dma-requests = <32>;
+			#dma-secure-mode = <1>;
 		};
 	};
 
@@ -1516,7 +1517,7 @@
 				thrd_mb = <108000>;
 				freq_mfc = <0>;
 				freq_int = <200000>;
-				freq_mif = <451000>;
+				freq_mif = <546000>;
 				freq_cpu = <0>;
 				freq_kfc = <0>;
 				has_enc_table = <1>;
@@ -1542,6 +1543,7 @@
 		clocks = <&clock 16>;
 		clock-names = "gate";
 		samsung,power-domain = <&spd_jpeg>;
+		smfc,int_qos_minlock = <400000>;
 	};
 
 	dsim_0: dsim@14800000 {

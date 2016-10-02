@@ -602,10 +602,11 @@ static s32 find_location(struct super_block *sb, CHAIN_T *p_dir, s32 entry, u32 
 
 DENTRY_T *get_dentry_in_dir(struct super_block *sb, CHAIN_T *p_dir, s32 entry, u32 *sector)
 {
+	FS_INFO_T *fsi = &(SDFAT_SB(sb)->fsi);
+	u32 dentries_per_page = PAGE_SIZE >> DENTRY_SIZE_BITS;
 	s32 off;
 	u32 sec;
 	u8 *buf;
-	FS_INFO_T *fsi = &(SDFAT_SB(sb)->fsi);
 
 	if (p_dir->dir == DIR_DELETED) {
 		EMSG("%s : abnormal access to deleted dentry\n", __func__);
@@ -615,11 +616,13 @@ DENTRY_T *get_dentry_in_dir(struct super_block *sb, CHAIN_T *p_dir, s32 entry, u
 
 	if (find_location(sb, p_dir, entry, &sec, &off))
 		return NULL;
-#if DIR_RA_CLUSTER
-	/* if FAT32 && first entry, then do read-ahead */
-	if (fsi->vol_type == FAT32 && !(entry & (fsi->dentries_per_clu - 1)))
+
+	/* DIRECTORY READAHEAD :
+	 * Try to read ahead per a page except root directory of fat12/16
+	 */
+	if ((!IS_CLUS_FREE(p_dir->dir)) &&
+		!(entry & (dentries_per_page - 1)))
 		dcache_readahead(sb, sec);
-#endif
 
 	buf = dcache_getblk(sb, sec);
 	if (!buf)
@@ -754,6 +757,9 @@ static s32 find_empty_entry(struct inode *inode, CHAIN_T *p_dir, s32 num_entries
 		if (fsi->vol_type == EXFAT) {
 			if (p_dir->dir != fsi->root_dir)
 				size = i_size_read(inode);
+		} else if ((fid->size >> DENTRY_SIZE_BITS) >= MAX_FAT_DENTRIES) {
+			/* FAT spec allows a dir to grow upto 65536 dentries */
+			return -ENOSPC;
 		}
 
 		if (__find_last_cluster(sb, p_dir, &last_clu))
@@ -1246,7 +1252,12 @@ static s32 create_dir(struct inode *inode, CHAIN_T *p_dir, UNI_NAME_T *p_uniname
 
 	fid->type= TYPE_DIR;
 	fid->rwoffset = 0;
-	fid->hint_last_off = -1;
+	fid->hint_bmap.off = -1;
+
+	/* hint_stat will be used if this is directory. */
+	fid->version = 0;
+	fid->hint_stat.eidx = 0;
+	fid->hint_stat.clu = fid->start_clu;
 
 	return 0;
 } /* end of create_dir */
@@ -1290,7 +1301,12 @@ static s32 create_file(struct inode *inode, CHAIN_T *p_dir, UNI_NAME_T *p_uninam
 
 	fid->type= TYPE_FILE;
 	fid->rwoffset = 0;
-	fid->hint_last_off = -1;
+	fid->hint_bmap.off = -1;
+
+	/* hint_stat will be used if this is directory. */
+	fid->version = 0;
+	fid->hint_stat.eidx = 0;
+	fid->hint_stat.clu = fid->start_clu;
 
 	return 0;
 } /* end of create_file */
@@ -1694,6 +1710,14 @@ s32 fscore_mount(struct super_block *sb)
 		opts->defrag = 0;
 		ret = mount_fat16(sb, p_pbr);
 	}
+
+	/* warn misaligned data data start sector must be a multiple of clu_size */
+	if (fsi->data_start_sector & (fsi->sect_per_clus - 1)) {
+		sdfat_log_msg(sb, KERN_ERR,
+			"media has misaligned data area (start sect : %u, "
+			"sect_per_clus : %u)",
+			fsi->data_start_sector, fsi->sect_per_clus);
+	}
 free_bh:
 	brelse(tmp_bh);
 	if (ret) {
@@ -1817,6 +1841,7 @@ s32 fscore_lookup(struct inode *inode, u8 *path, FILE_ID_T *fid)
 	ENTRY_SET_CACHE_T *es=NULL;
 	struct super_block *sb = inode->i_sb;
 	FS_INFO_T *fsi = &(SDFAT_SB(sb)->fsi);
+	FILE_ID_T *dir_fid = &(SDFAT_I(inode)->fid);
 
 	TMSG("%s entered\n", __func__);
 
@@ -1829,8 +1854,17 @@ s32 fscore_lookup(struct inode *inode, u8 *path, FILE_ID_T *fid)
 	if (ret)
 		return ret;
 
+	/* check the validation of hint_stat and initialize it if required */
+	if (dir_fid->version != (u32)(inode->i_version & 0xffffffff)) {
+		dir_fid->hint_stat.clu = dir.dir;
+		dir_fid->hint_stat.eidx = 0;
+		dir_fid->version = (u32)(inode->i_version & 0xffffffff);
+	}
+
 	/* search the file name for directories */
-	dentry = fsi->fs_func->find_dir_entry(sb, &dir, &uni_name, num_entries, &dos_name, TYPE_ALL);
+	dentry = fsi->fs_func->find_dir_entry(sb, &dir, &dir_fid->hint_stat,
+				&uni_name, num_entries, &dos_name, TYPE_ALL);
+
 	if ((dentry < 0) && (dentry != -EEXIST))
 		return dentry; /* -error value */
 
@@ -1843,7 +1877,7 @@ s32 fscore_lookup(struct inode *inode, u8 *path, FILE_ID_T *fid)
 	if (unlikely(dentry == -EEXIST)) {
 		fid->type = TYPE_DIR;
 		fid->rwoffset = 0;
-		fid->hint_last_off = -1;
+		fid->hint_bmap.off = -1;
 
 		fid->attr = ATTR_SUBDIR;
 		fid->flags = 0x01;
@@ -1864,7 +1898,7 @@ s32 fscore_lookup(struct inode *inode, u8 *path, FILE_ID_T *fid)
 
 		fid->type = fsi->fs_func->get_entry_type(ep);
 		fid->rwoffset = 0;
-		fid->hint_last_off = -1;
+		fid->hint_bmap.off = -1;
 		fid->attr = fsi->fs_func->get_entry_attr(ep);
 
 		fid->size = fsi->fs_func->get_entry_size(ep2);
@@ -1879,6 +1913,11 @@ s32 fscore_lookup(struct inode *inode, u8 *path, FILE_ID_T *fid)
 		if (fsi->vol_type == EXFAT)
 			release_dentry_set(es);
 	}
+
+	/* hint_stat will be used if this is directory. */
+	fid->version = 0;
+	fid->hint_stat.eidx = 0;
+	fid->hint_stat.clu = fid->start_clu;
 
 	TMSG("%s exited successfully\n", __func__);
 	return 0;
@@ -1945,10 +1984,10 @@ s32 fscore_read_link(struct inode *inode, FILE_ID_T *fid, void *buffer, u64 coun
 			clu += clu_offset;
 		} else {
 			/* hint information */
-			if ((clu_offset > 0) && (fid->hint_last_off > 0) &&
-				(clu_offset >= fid->hint_last_off)) {
-				clu_offset -= fid->hint_last_off;
-				clu = fid->hint_last_clu;
+			if ((clu_offset > 0) && (fid->hint_bmap.off > 0) &&
+				(clu_offset >= fid->hint_bmap.off)) {
+				clu_offset -= fid->hint_bmap.off;
+				clu = fid->hint_bmap.clu;
 			}
 
 			while (clu_offset > 0) {
@@ -1961,8 +2000,8 @@ s32 fscore_read_link(struct inode *inode, FILE_ID_T *fid, void *buffer, u64 coun
 		}
 
 		/* hint information */
-		fid->hint_last_off = (s32)(fid->rwoffset >> fsi->cluster_size_bits);
-		fid->hint_last_clu = clu;
+		fid->hint_bmap.off = (s32)(fid->rwoffset >> fsi->cluster_size_bits);
+		fid->hint_bmap.clu = clu;
 
 		offset = (s32)(fid->rwoffset & (fsi->cluster_size - 1)); /* byte offset in cluster   */
 		sec_offset = offset >> sb->s_blocksize_bits;            /* sector offset in cluster */
@@ -2056,10 +2095,10 @@ s32 fscore_write_link(struct inode *inode, FILE_ID_T *fid, void *buffer, u64 cou
 			}
 		} else {
 			/* hint information */
-			if ((clu_offset > 0) && (fid->hint_last_off > 0) &&
-				(clu_offset >= fid->hint_last_off)) {
-				clu_offset -= fid->hint_last_off;
-				clu = fid->hint_last_clu;
+			if ((clu_offset > 0) && (fid->hint_bmap.off > 0) &&
+				(clu_offset >= fid->hint_bmap.off)) {
+				clu_offset -= fid->hint_bmap.off;
+				clu = fid->hint_bmap.clu;
 			}
 
 			while ((clu_offset > 0) && (!IS_CLUS_EOF(clu))) {
@@ -2116,8 +2155,8 @@ s32 fscore_write_link(struct inode *inode, FILE_ID_T *fid, void *buffer, u64 cou
 		}
 
 		/* hint information */
-		fid->hint_last_off = (s32)(fid->rwoffset >> fsi->cluster_size_bits);
-		fid->hint_last_clu = clu;
+		fid->hint_bmap.off = (s32)(fid->rwoffset >> fsi->cluster_size_bits);
+		fid->hint_bmap.clu = clu;
 
 		/* byte offset in cluster   */
 		offset = (s32)(fid->rwoffset & (fsi->cluster_size-1));
@@ -2420,10 +2459,14 @@ s32 fscore_truncate(struct inode *inode, u64 old_size, u64 new_size)
 		return -EIO;
 
 	/* hint information */
-	fid->hint_last_off = -1;
-	fid->hint_last_clu = CLUS_EOF;
+	fid->hint_bmap.off = -1;
+	fid->hint_bmap.clu = CLUS_EOF;
 	if (fid->rwoffset > fid->size)
 		fid->rwoffset = fid->size;
+
+	/* hint_stat will be used if this is directory. */
+	fid->hint_stat.eidx = 0;
+	fid->hint_stat.clu = fid->start_clu;
 
 	fs_sync(sb, 0);
 	fs_set_vol_flags(sb, VOL_CLEAN);
@@ -2772,8 +2815,8 @@ s32 fscore_read_inode(struct inode *inode, DIR_ENTRY_T *info)
 	if (is_dir) {
 		u32 dotcnt = 0;
 		dir.dir = fid->start_clu;
-		dir.flags = 0x01;
-		dir.size = 0;
+		dir.flags = fid->flags;
+		dir.size = fid->size >> fsi->cluster_size_bits;
 		/*
 		 * NOTE :
 		 * If "dir.flags" has 0x01, "dir.size" is meaningles.
@@ -2944,12 +2987,12 @@ s32 fscore_map_clus(struct inode *inode, s32 clu_offset, u32 *clu, int dest)
 		}
 	} else {
 		/* hint information */
-		if ((clu_offset > 0) && (fid->hint_last_off > 0) &&
-			(clu_offset >= fid->hint_last_off)) {
-			clu_offset -= fid->hint_last_off;
-			/* hint_last_cl should be valid */
-			sdfat_debug_bug_on(fid->hint_last_clu < 2);
-			*clu = fid->hint_last_clu;
+		if ((clu_offset > 0) && (fid->hint_bmap.off > 0) &&
+			(clu_offset >= fid->hint_bmap.off)) {
+			clu_offset -= fid->hint_bmap.off;
+			/* hint_bmap.clu should be valid */
+			sdfat_debug_bug_on(fid->hint_bmap.clu < 2);
+			*clu = fid->hint_bmap.clu;
 		}
 
 		while ((clu_offset > 0) && (!IS_CLUS_EOF(*clu))) {
@@ -2980,7 +3023,7 @@ s32 fscore_map_clus(struct inode *inode, s32 clu_offset, u32 *clu, int dest)
 				num_to_be_allocated, 
 				(SDFAT_I(inode)->i_size_ondisk),
 				fid->flags, fid->start_clu,
-				fid->hint_last_off, fid->hint_last_clu,
+				fid->hint_bmap.off, fid->hint_bmap.clu,
 				fid->rwoffset, clu_offset,
 				last_clu, new_clu.dir);
 			sdfat_fs_error(sb, "broken FAT chain.");
@@ -3108,8 +3151,8 @@ s32 fscore_map_clus(struct inode *inode, s32 clu_offset, u32 *clu, int dest)
 	fsi->reserved_clusters = reserved_clusters;
 
 	/* hint information */
-	fid->hint_last_off = local_clu_offset;
-	fid->hint_last_clu = *clu;
+	fid->hint_bmap.off = local_clu_offset;
+	fid->hint_bmap.clu = *clu;
 
 	return 0;
 } /* end of fscore_map_clus */
@@ -3271,10 +3314,10 @@ s32 fscore_readdir(struct inode *inode, DIR_ENTRY_T *dir_entry)
 			clu.size -= clu_offset;
 		} else {
 			/* hint_information */
-			if ((clu_offset > 0) && (fid->hint_last_off > 0) &&
-				(clu_offset >= fid->hint_last_off)) {
-				clu_offset -= fid->hint_last_off;
-				clu.dir = fid->hint_last_clu;
+			if ((clu_offset > 0) && (fid->hint_bmap.off > 0) &&
+				(clu_offset >= fid->hint_bmap.off)) {
+				clu_offset -= fid->hint_bmap.off;
+				clu.dir = fid->hint_bmap.clu;
 			}
 
 			while (clu_offset > 0) {
@@ -3355,8 +3398,8 @@ s32 fscore_readdir(struct inode *inode, DIR_ENTRY_T *dir_entry)
 			 * fat16 root directory does not need it.
 			 */
 			if (!IS_CLUS_FREE(dir.dir)) {
-				fid->hint_last_off = dentry >> dentries_per_clu_bits;
-				fid->hint_last_clu = clu.dir;
+				fid->hint_bmap.off = dentry >> dentries_per_clu_bits;
+				fid->hint_bmap.clu = clu.dir;
 			}
 
 			fid->rwoffset = (s64) ++dentry;

@@ -52,6 +52,8 @@
 #include <asm/sections.h>
 #include <asm/tlbflush.h>
 #include <asm/ptrace.h>
+#include <asm/cputype.h>
+#include <asm/topology.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/ipi.h>
@@ -684,13 +686,6 @@ static void flush_all_cpu_cache(void *info)
 	flush_cache_louis();
 }
 
-#ifdef CONFIG_SCHED_HMP
-
-#include <asm/cputype.h>
-
-extern struct cpumask hmp_slow_cpu_mask;
-extern struct cpumask hmp_fast_cpu_mask;
-
 static void flush_all_cluster_cache(void *info)
 {
 	flush_cache_all();
@@ -698,29 +693,26 @@ static void flush_all_cluster_cache(void *info)
 
 void flush_all_cpu_caches(void)
 {
-        unsigned int cpu, cluster, target_cpu;
+	int cpu, cluster, target_cluster = -1;
+	struct cpumask shared_cache_flush_mask;
 
 	preempt_disable();
 	cpu = smp_processor_id();
 	cluster = MPIDR_AFFINITY_LEVEL(cpu_logical_map(cpu), 1);
+	cpumask_clear(&shared_cache_flush_mask);
 
-	if (!cluster)
-		target_cpu = first_cpu(hmp_slow_cpu_mask);
-	else
-		target_cpu = first_cpu(hmp_fast_cpu_mask);
+	/* make cpumask to flush shared cache */
+	for_each_online_cpu(cpu)
+		if (cluster != topology_physical_package_id(cpu) &&
+			target_cluster != topology_physical_package_id(cpu)) {
+			target_cluster = topology_physical_package_id(cpu);
+			cpumask_set_cpu(cpu, &shared_cache_flush_mask);
+		}
 
 	smp_call_function(flush_all_cpu_cache, NULL, 1);
-	smp_call_function_single(target_cpu, flush_all_cluster_cache, NULL, 1);
+	smp_call_function_many(&shared_cache_flush_mask,
+			flush_all_cluster_cache, NULL, 1);
 	flush_cache_all();
 
 	preempt_enable();
 }
-#else
-void flush_all_cpu_caches(void)
-{
-	preempt_disable();
-	smp_call_function(flush_all_cpu_cache, NULL, 1);
-	flush_cache_all();
-	preempt_enable();
-}
-#endif

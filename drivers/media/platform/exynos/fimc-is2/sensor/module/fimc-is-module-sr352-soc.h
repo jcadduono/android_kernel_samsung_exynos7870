@@ -269,6 +269,7 @@ enum runmode {
 	RUNMODE_CAPTURING_STOP,
 	RUNMODE_RECORDING,	/* camcorder mode */
 	RUNMODE_RECORDING_STOP,
+	RUNMODE_HD_RECORDING_STOP,
 };
 
 /* SR352 default format (codes, sizes, preset values) */

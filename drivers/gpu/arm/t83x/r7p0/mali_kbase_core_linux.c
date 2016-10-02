@@ -781,9 +781,9 @@ copy_failed:
 				break;
 			}
 
-                       if(kbdev->vendor_callbacks->mem_profile_check_kctx)
-			if (!kbdev->vendor_callbacks->mem_profile_check_kctx(kctx))
-				break;
+			if(kbdev->vendor_callbacks->mem_profile_check_kctx)
+				if (!kbdev->vendor_callbacks->mem_profile_check_kctx(kctx))
+					break;
 
 #ifndef CONFIG_MALI_COH_USER
 			if (kbase_sync_now(kctx, &sn->sset) != 0)

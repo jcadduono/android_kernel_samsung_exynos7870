@@ -930,6 +930,9 @@ void sc_hwset_src_imgsize(struct sc_dev *sc, struct sc_frame *frame)
 			cfg |= frame->width << 16;
 		else
 			cfg |= (frame->width >> 1) << 16;
+	} else if (frame->sc_fmt->num_comp == 4) {
+		if (sc_fmt_is_ayv12(frame->sc_fmt->pixelformat))
+			cfg |= ALIGN(frame->width >> 1, 16) << 16;
 	}
 
 	writel(cfg, sc->regs + SCALER_SRC_SPAN);
@@ -1016,25 +1019,18 @@ void sc_hwregs_dump(struct sc_dev *sc)
 			sc->regs + 0x260, 4, false);
 	print_hex_dump(KERN_NOTICE, "", DUMP_PREFIX_ADDRESS, 16, 4,
 			sc->regs + 0x278, 4, false);
-	if (sc->version <= SCALER_VERSION(2, 1, 1))
-		print_hex_dump(KERN_NOTICE, "", DUMP_PREFIX_ADDRESS, 16, 4,
+	print_hex_dump(KERN_NOTICE, "", DUMP_PREFIX_ADDRESS, 16, 4,
 			sc->regs + 0x280, 0x28C - 0x280 + 4, false);
-	if (sc->version == SCALER_VERSION(2, 2, 0)) {
-		print_hex_dump(KERN_NOTICE, "", DUMP_PREFIX_ADDRESS, 16, 4,
-			sc->regs + 0x280, 0x28C - 0x280 + 4, false);
-		print_hex_dump(KERN_NOTICE, "", DUMP_PREFIX_ADDRESS, 16, 4,
-			sc->regs + 0x300, 0x318 - 0x300 + 4, false);
-	}
 	print_hex_dump(KERN_NOTICE, "", DUMP_PREFIX_ADDRESS, 16, 4,
 			sc->regs + 0x290, 0x298 - 0x290 + 4, false);
-	if (sc->version <= SCALER_VERSION(2, 1, 1))
-		print_hex_dump(KERN_NOTICE, "", DUMP_PREFIX_ADDRESS, 16, 4,
+	print_hex_dump(KERN_NOTICE, "", DUMP_PREFIX_ADDRESS, 16, 4,
 			sc->regs + 0x2A8, 0x2A8 - 0x2A0 + 4, false);
 	print_hex_dump(KERN_NOTICE, "", DUMP_PREFIX_ADDRESS, 16, 4,
 			sc->regs + 0x2B0, 0x2C4 - 0x2B0 + 4, false);
-	if (sc->version >= SCALER_VERSION(3, 0, 0))
-		print_hex_dump(KERN_NOTICE, "", DUMP_PREFIX_ADDRESS, 16, 4,
+	print_hex_dump(KERN_NOTICE, "", DUMP_PREFIX_ADDRESS, 16, 4,
 			sc->regs + 0x2D0, 0x2DC - 0x2D0 + 4, false);
+	print_hex_dump(KERN_NOTICE, "", DUMP_PREFIX_ADDRESS, 16, 4,
+			sc->regs + 0x300, 0x318 - 0x300 + 4, false);
 
 	/* shadow registers */
 	print_hex_dump(KERN_NOTICE, "", DUMP_PREFIX_ADDRESS, 16, 4,

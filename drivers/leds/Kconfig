@@ -529,6 +529,13 @@ config LEDS_S2MU005_FLASH
 	help
 	  This option enables support for the LEDs on the S2MU005.
 
+config LEDS_S2MU005_RGB
+	bool "LED driver for S2MU005 RGB"
+	help
+	  Use LED driver for S2MU005 RGB
+	  If unsure, say N
+	  
+
 config S2MU005_LEDS_I2C
 	bool "LED support for the S2MU005"
 	help

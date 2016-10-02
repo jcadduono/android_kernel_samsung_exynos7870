@@ -87,16 +87,7 @@ struct dsim_resources {
 
 struct panel_private {
 	unsigned int lcdConnected;
-	struct dsim_panel_ops *ops;
 	void *par;
-};
-
-struct dsim_panel_ops {
-	int (*early_probe)(struct dsim_device *dsim);
-	int	(*probe)(struct dsim_device *dsim);
-	int	(*displayon)(struct dsim_device *dsim);
-	int	(*exit)(struct dsim_device *dsim);
-	int	(*init)(struct dsim_device *dsim);
 };
 
 struct dsim_device {
@@ -120,8 +111,6 @@ struct dsim_device {
 	struct decon_lcd lcd_info;
 	struct dphy_timing_value	timing;
 	int				pktgo;
-	int				irq_refcount;
-	struct mutex			irq_lock;
 
 	int id;
 	u32 data_lane_cnt;
@@ -131,17 +120,9 @@ struct dsim_device {
 	struct mutex lock;
 	struct v4l2_subdev sd;
 	struct media_pad pad;
-
 	struct panel_private priv;
-
-	struct phy *phy;
-
-	struct pinctrl *pinctrl;
-	struct pinctrl_state *turnon_tes;
-	struct pinctrl_state *turnoff_tes;
 	struct dsim_clks_param clks_param;
-	struct regulator *lcd_vdd;
-	struct regulator *lcd_vdd_2;
+	struct phy *phy;
 
 	int octa_id;
 };
@@ -159,6 +140,7 @@ struct mipi_dsim_lcd_driver {
 	int	(*probe)(struct dsim_device *dsim);
 	int	(*suspend)(struct dsim_device *dsim);
 	int	(*displayon)(struct dsim_device *dsim);
+	int	(*displayon_late)(struct dsim_device *dsim);
 	int	(*resume)(struct dsim_device *dsim);
 	int	(*dump)(struct dsim_device *dsim);
 };
@@ -249,8 +231,4 @@ u32 dsim_reg_get_xres(u32 id);
 #define DSIM_IOC_DUMP			_IOW('D', 8, u32)
 #define DSIM_IOC_VSYNC			_IOW('D', 9, u32)
 
-
-int dsim_write_hl_data(struct dsim_device *dsim, const u8 *cmd, u32 cmdSize);
-int dsim_read_hl_data(struct dsim_device *dsim, u8 addr, u32 size, u8 *buf);
 #endif /* __DSIM_H__ */
-

@@ -814,6 +814,12 @@ config SND_SOC_WM9713
 config SND_SOC_DUMMY_CODEC
 	tristate
 
+config SND_SOC_COD30XX_EXT_ANT
+	bool "ISDB-T External antenna"
+	default n
+	help
+	  Support for ISDB-T External antenna.
+
 # Amp
 config SND_SOC_LM4857
 	tristate

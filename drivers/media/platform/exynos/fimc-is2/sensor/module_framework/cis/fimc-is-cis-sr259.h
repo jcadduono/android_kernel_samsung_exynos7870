@@ -30,6 +30,7 @@
 #define USE_GROUP_PARAM_HOLD	(1)
 
 enum sr259_fixed_framerate {
+	SR259_7_FIXED_FPS = 7,
 	SR259_15_FIXED_FPS = 15,
 	SR259_24_FIXED_FPS = 24,
 };

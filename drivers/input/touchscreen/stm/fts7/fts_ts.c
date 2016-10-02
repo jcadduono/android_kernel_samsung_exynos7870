@@ -716,6 +716,11 @@ int fts_get_version_info(struct fts_ts_info *info)
 	regAdd[1] = 0x00;
 	regAdd[2] = 0x5A;
 
+	if (info->stm_format_ver == STM_FORMAT_VER6)
+	{
+		regAdd[2] = 0x52;
+	}
+
 	rc = fts_read_reg(info, regAdd, 3, (unsigned char *)data, 3);
 	if (!rc)
 	{
@@ -724,7 +729,10 @@ int fts_get_version_info(struct fts_ts_info *info)
 	}
 	else
 	{
-		info->afe_ver = data[2];
+		if (info->stm_format_ver == STM_FORMAT_VER6)
+			info->afe_ver = data[1];
+		else
+			info->afe_ver = data[2];
 	}
 	tsp_debug_info(true, &info->client->dev,
 			"IC product id : 0x%02X "
@@ -1340,9 +1348,16 @@ static unsigned char fts_event_handler_type_b(struct fts_ts_info *info,
 #endif
 #ifdef FTS_SUPPROT_MULTIMEDIA
 			info->brush_size = z;
+			if(info->brush_size <= 0)
+				info->brush_size = 1;
+			if(!(info->velocity_enable||info->brush_enable))
+				info->brush_size = 255;
 #endif
 			input_report_key(info->input_dev, BTN_TOUCH, 1);
 			input_mt_slot(info->input_dev, TouchID);
+#if defined(FTS_SUPPROT_MULTIMEDIA)
+			input_report_abs(info->input_dev, ABS_MT_PRESSURE, 0);
+#endif
 			input_mt_report_slot_state(info->input_dev,
 						   MT_TOOL_FINGER,
 						   1 + (palm << 1));
@@ -1398,6 +1413,9 @@ static unsigned char fts_event_handler_type_b(struct fts_ts_info *info,
 			info->touch_count--;
 
 			input_mt_slot(info->input_dev, TouchID);
+#if defined(FTS_SUPPROT_MULTIMEDIA)
+			input_report_abs(info->input_dev, ABS_MT_PRESSURE, 0);
+#endif
 
 #if defined(FTS_SUPPORT_SIDE_GESTURE)
 			if (info->board->support_sidegesture) {

@@ -15,12 +15,18 @@
 
 #if defined(CONFIG_CAMERA_J7X)
 #include "fimc-is-vendor-config_j7x.h"
+#elif defined(CONFIG_CAMERA_ON7X)
+#include "fimc-is-vendor-config_on7x.h"
 #elif defined(CONFIG_CAMERA_MATISSE10)
 #include "fimc-is-vendor-config_matisse10.h"
 #elif defined(CONFIG_CAMERA_GTAXL)
 #include "fimc-is-vendor-config_gtaxl.h"
 #elif defined(CONFIG_CAMERA_A7MAX)
 #include "fimc-is-vendor-config_a7max.h"
+#elif defined(CONFIG_CAMERA_ON7E)
+#include "fimc-is-vendor-config_on7e.h"
+#elif defined(CONFIG_CAMERA_A3XPREMIUM)
+#include "fimc-is-vendor-config_a3xpremium.h"
 #else
 #include "fimc-is-vendor-config_joshua.h"
 #endif

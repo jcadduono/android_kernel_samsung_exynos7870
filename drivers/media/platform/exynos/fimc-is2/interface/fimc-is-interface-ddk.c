@@ -116,6 +116,9 @@ static void fimc_is_lib_io_callback(void *this, enum lib_cb_event_type event_id,
 	int wq_id, output_id = 0;
 	u32 hw_fcount, index;
 
+	/* HACK: DMA interrupt callback is skipped for preventing interrupt loss */
+	return;
+
 	BUG_ON(!this);
 
 	hw_ip = (struct fimc_is_hw_ip *)this;

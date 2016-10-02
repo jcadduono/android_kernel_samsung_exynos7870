@@ -26,7 +26,11 @@
 #define SENSOR_5E3_COARSE_INTEGRATION_TIME_MAX_MARGIN       0x4
 
 #define USE_GROUP_PARAM_HOLD	(1)
+#if defined(CONFIG_CAMERA_OTPROM_SUPPORT_FRONT)
+#define USE_OTP_AWB_CAL_DATA	(1)
+#else
 #define USE_OTP_AWB_CAL_DATA	(0)
+#endif
 
 #endif
 

@@ -100,6 +100,11 @@
 #define GLOVE_MODE
 #endif
 
+#if defined(CONFIG_MELFAS_GHOST_TOUCH_AUTO_DETECT) \
+	&& defined(CONFIG_SEC_DEBUG_TSP_LOG) && !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+#define MELFAS_GHOST_TOUCH_AUTO_DETECT
+#endif
+
 #define COVER_MODE
 
 #define MMS_DEVICE_NAME	"mms_ts"
@@ -176,7 +181,19 @@
 #define CMD_LEN				32
 #define CMD_RESULT_LEN			512
 #define CMD_PARAM_NUM			8
+#if defined(MELFAS_GHOST_TOUCH_AUTO_DETECT)
+#define GHOST_TIMER_INTERVAL	HZ /* 1 sec */
+#define MMS_GHOST_THRESHOLD 100
+#define MMS_INVALID_DATA -1
+#define GHOST_LOG_PATH	"/sdcard/log/tsp_ghost.log"
+#define GHOST_LOG_BUF_SIZE	100
 
+struct mms_data {
+	int x;
+	int y;
+	int z;
+};
+#endif
 /**
  * Device info structure
  */
@@ -265,6 +282,14 @@ struct mms_ts_info {
 	struct delayed_work ghost_check;
 	u8 tsp_dump_lock;
 	u8 add_log_header;
+#endif
+#if defined(MELFAS_GHOST_TOUCH_AUTO_DETECT)
+	struct mms_data cur_data[MAX_FINGER_NUM];
+	struct mms_data prev_data[MAX_FINGER_NUM];
+	struct mms_data ghost_data;
+	bool data_first_update;
+	bool ghost_file_created;
+	struct timer_list ghost_timer;
 #endif
 
 };

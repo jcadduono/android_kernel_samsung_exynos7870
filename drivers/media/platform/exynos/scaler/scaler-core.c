@@ -388,6 +388,18 @@ static const struct sc_fmt sc_formats[] = {
 		.v_shift	= 1,
 		.is_alphablend_fmt = 1,
 		.alphablend_plane_num = 1,
+        }, {
+                /* Src Blending : YV12 + RGB32 */
+                .name           = "YV12-RGB32",
+                .pixelformat    = V4L2_PIX_FMT_YVU420_RGB32,    /* YV12-RGB32 */
+                .cfg_val        = SCALER_CFG_FMT_YCBCR420_3P,
+                .bitperpixel    = { 12, 32},
+                .num_planes     = 2,
+                .num_comp       = 4,
+                .h_shift        = 1,
+                .v_shift        = 1,
+                .is_alphablend_fmt = 1,
+                .alphablend_plane_num = 1,
 	},
 };
 
@@ -3256,6 +3268,37 @@ static int sc_get_bufaddr(struct sc_dev *sc, struct vb2_buffer *vb2buf,
 				return 0;
 			}
 			dev_err(sc->dev, "Please check the num of comp\n");
+		}
+		break;
+	case 4:
+		if (frame->sc_fmt->num_planes == 2) {
+			if (frame->sc_fmt->is_alphablend_fmt) {
+				if (sc_fmt_is_ayv12(frame->sc_fmt->pixelformat)) {
+					unsigned int c_span;
+					c_span = ALIGN(frame->width >> 1, 16);
+					frame->addr.cr = frame->addr.y + pixsize;
+					frame->addr.ysize = pixsize;
+					frame->addr.crsize = c_span * (frame->height >> 1);
+					frame->addr.cb = frame->addr.cr + frame->addr.crsize;
+					frame->addr.cbsize = frame->addr.crsize;
+				}
+
+				cookie = vb2_plane_cookie(vb2buf, 1);
+				if (!cookie)
+					return -EINVAL;
+				BUG_ON(!sc->variant->blending);
+				BUG_ON(src_blend_frame == NULL);
+				ret = sc_get_dma_address(cookie,
+						&src_blend_frame->addr.y);
+				src_blend_pixsize =
+					src_blend_frame->width *
+						src_blend_frame->height;
+
+				src_blend_frame->addr.ysize =
+				src_blend_pixsize *
+					frame->sc_fmt->bitperpixel[1] >> 3;
+				return 0;
+			}
 		}
 		break;
 	default:

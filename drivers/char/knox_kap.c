@@ -170,7 +170,16 @@ long knox_kap_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			turn_off_kap();
 			break;
 		case 1:
+#if defined(CONFIG_SOC_EXYNOS7580) || defined(CONFIG_SOC_EXYNOS7870)
+			if(arg)
+			{   
+				turn_off_kap();
+			} else {
+				turn_on_kap();
+			} 
+#else
 			turn_on_kap();
+#endif
 			break;
 		default:
 			printk(KERN_ERR " %s -> Invalid kap mode operations\n", __FUNCTION__);

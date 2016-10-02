@@ -5,6 +5,9 @@
  * Author: Dongrak Shin <dongrak.shin@samsung.com>
  *
 */
+
+ /* usb notify layer v2.0 */
+
 #define pr_fmt(fmt) "usb_notify: " fmt
 
 #include <linux/module.h>

@@ -198,6 +198,7 @@ err:
 }
 #endif
 
+#if defined(CONFIG_CAMERA_USE_SOC_SENSOR) || defined(CONFIG_LEDS_SUPPORT_FRONT_FLASH)
 static void torch_led_on_off(int value)
 {
 	int ret;
@@ -215,6 +216,7 @@ static void torch_led_on_off(int value)
 			pr_err("%s : CHGIN_ENGH = 0 fail\n", __func__);
 	}
 }
+#endif
 
 static void led_set(struct s2mu005_led_data *led_data)
 {
@@ -469,8 +471,7 @@ static int s2mu005_led_setup(struct s2mu005_led_data *led_data)
 #ifdef CONFIG_S2MU005_LEDS_I2C
 	value =	S2MU005_FLASH_TORCH_OFF;
 #else
-	value = S2MU005_CH1_FLASH_ON_GPIO | S2MU005_CH1_TORCH_ON_GPIO
-		| S2MU005_CH2_TORCH_ON_GPIO;
+	value = S2MU005_CH1_FLASH_ON_GPIO | S2MU005_CH1_TORCH_ON_GPIO;
 #endif
 	mask = S2MU005_CH1_TORCH_ENABLE_MASK | S2MU005_CH1_FLASH_ENABLE_MASK
 		| S2MU005_CH2_TORCH_ENABLE_MASK;

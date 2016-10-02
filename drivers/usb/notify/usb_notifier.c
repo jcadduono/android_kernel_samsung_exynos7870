@@ -395,7 +395,8 @@ static struct otg_notify dwc_lsi_notify = {
 	.vbus_detect_gpio = -1,
 	.is_wakelock = 1,
 	.booting_delay_sec = 10,
-	.auto_drive_vbus = 1,
+	.auto_drive_vbus = NOTIFY_OP_POST,
+	.device_check_sec = 3,
 	.set_battcall = set_online,
 };
 

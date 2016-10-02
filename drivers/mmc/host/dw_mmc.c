@@ -1899,10 +1899,10 @@ static int dw_mci_get_cd(struct mmc_host *mmc)
 	spin_lock_bh(&host->lock);
 	if (present) {
 		set_bit(DW_MMC_CARD_PRESENT, &slot->flags);
-		dev_info(&mmc->class_dev, "card is present\n");
+		dev_dbg(&mmc->class_dev, "card is present\n");
 	} else {
 		clear_bit(DW_MMC_CARD_PRESENT, &slot->flags);
-		dev_info(&mmc->class_dev, "card is not present\n");
+		dev_dbg(&mmc->class_dev, "card is not present\n");
 	}
 	spin_unlock_bh(&host->lock);
 
@@ -2338,6 +2338,8 @@ static void dw_mci_tasklet_func(unsigned long priv)
 				host->cmd_status = 0;
 
 			dw_mci_request_end(host, mrq);
+			dw_mci_debug_req_log(host, host->mrq,
+					STATE_REQ_DATA_PROCESS, state);
 			goto unlock;
 
 		case STATE_DATA_ERROR:
@@ -3159,6 +3161,8 @@ static int dw_mci_init_slot(struct dw_mci *host, unsigned int id)
 {
 	struct mmc_host *mmc;
 	struct dw_mci_slot *slot;
+	struct dw_mci_sfe_ram_dump *dump;
+
 	const struct dw_mci_drv_data *drv_data = host->drv_data;
 	int ctrl_id, ret;
 	u32 freq[2];
@@ -3166,7 +3170,10 @@ static int dw_mci_init_slot(struct dw_mci *host, unsigned int id)
 	mmc = mmc_alloc_host(sizeof(struct dw_mci_slot), host->dev);
 	if (!mmc)
 		return -ENOMEM;
-
+	dump = devm_kzalloc(host->dev, sizeof(*dump), GFP_KERNEL);
+	if (!dump)
+		dev_err(host->dev,"sfr dump memory alloc faile!\n");
+	host->sfr_dump = dump;
 	slot = mmc_priv(mmc);
 	slot->id = id;
 	slot->mmc = mmc;
@@ -3619,8 +3626,10 @@ static struct dw_mci_board *dw_mci_parse_dt(struct dw_mci *host)
 	if (of_find_property(np, "card-detect-invert-gpio", NULL))
 		pdata->caps2 |= MMC_CAP2_CD_ACTIVE_HIGH;
 
-	if (of_find_property(np, "card-detect-gpio", NULL))
+	if (of_find_property(np, "card-detect-gpio", NULL)) {
 		pdata->cd_type = DW_MCI_CD_GPIO;
+		pdata->caps2 |= MMC_CAP2_DETECT_ON_ERR;
+	}
 
 #ifdef CONFIG_MMC_DW_EXYNOS_EMMC_SHUTDOWN_POWERCTRL
 	/* enable once to prevent power off use_cnt 0 regulators */

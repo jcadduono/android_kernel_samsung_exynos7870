@@ -250,7 +250,10 @@ static int mms_input_open(struct input_dev *dev)
 
 	if (!info->init)
 		mms_enable(info);
-
+#if defined(MELFAS_GHOST_TOUCH_AUTO_DETECT)
+	info->data_first_update = true;
+	mod_timer(&info->ghost_timer, get_jiffies_64() + GHOST_TIMER_INTERVAL);
+#endif
 	return 0;
 }
 
@@ -260,6 +263,10 @@ static int mms_input_open(struct input_dev *dev)
 static void mms_input_close(struct input_dev *dev)
 {
 	struct mms_ts_info *info = input_get_drvdata(dev);
+#if defined(MELFAS_GHOST_TOUCH_AUTO_DETECT)
+	del_timer(&info->ghost_timer);
+	cancel_delayed_work_sync(&info->ghost_check);
+#endif
 	mms_disable(info);
 	return;
 }
@@ -279,7 +286,42 @@ static void mms_ghost_touch_check(struct work_struct *work)
 	struct mms_ts_info *info = container_of(work, struct mms_ts_info,
 						ghost_check.work);
 	int i;
+#if defined(MELFAS_GHOST_TOUCH_AUTO_DETECT)
+	struct file *fp;
+	char buf[GHOST_LOG_BUF_SIZE];
+	int ret;
+	u64 ts;
+	unsigned long ts_nsec;
+	static int ghost_cnt = 0;
 
+	if(!info->ghost_file_created){
+		fp = filp_open(GHOST_LOG_PATH, O_CREAT | O_TRUNC | O_WRONLY,
+					S_IRUSR | S_IRGRP | S_IROTH);
+		if (!IS_ERR(fp)) {
+			filp_close(fp, NULL);
+			info->ghost_file_created = true;
+		}
+		return;
+	}
+	
+	ts = local_clock();
+	ts_nsec = do_div(ts, 1000000000);
+	sprintf(buf, "[%d][%5lu.%06lu] (%d, %d, %d)\n", ++ghost_cnt, (unsigned long)ts, ts_nsec/1000,
+				info->ghost_data.x, info->ghost_data.y, info->ghost_data.z);
+	tsp_debug_info(true, &info->client->dev, "[%s] %s\n", __func__, buf);
+
+	fp = filp_open(GHOST_LOG_PATH, O_APPEND | O_WRONLY,
+					S_IRUSR | S_IRGRP | S_IROTH);
+	if (IS_ERR(fp)){
+			tsp_debug_err(true, &info->client->dev, "%s, file open error..\n", __func__);
+	} else {
+		ret = fp->f_op->write(fp, buf,
+			strnlen(buf, GHOST_LOG_BUF_SIZE), &fp->f_pos);
+		if (ret != strnlen(buf, GHOST_LOG_BUF_SIZE)) {
+			tsp_debug_err(true, &info->client->dev, "%s, Can't write log file\n", __func__);
+		}
+	}
+#endif
 	if(info->tsp_dump_lock==1){
 		tsp_debug_err(true, &info->client->dev, "%s, ignored ## already checking..\n", __func__);
 		return;
@@ -290,6 +332,15 @@ static void mms_ghost_touch_check(struct work_struct *work)
 	for(i=0; i<5; i++){
 		tsp_debug_err(true, &info->client->dev, "%s, start ##\n", __func__);
 		run_intensity_for_ghosttouch((void *)info);
+#if defined(MELFAS_GHOST_TOUCH_AUTO_DETECT)
+		if (!IS_ERR_OR_NULL(fp)){
+			ret = fp->f_op->write(fp, (char *)info->print_buf,
+				strnlen(info->print_buf, PAGE_SIZE), &fp->f_pos);
+			if (ret != strnlen(info->print_buf, PAGE_SIZE)) {
+				tsp_debug_err(true, &info->client->dev, "%s, Can't write log file\n", __func__);
+			}
+		}
+#endif
 		msleep(100);
 
 	}
@@ -297,6 +348,10 @@ static void mms_ghost_touch_check(struct work_struct *work)
 	info->tsp_dump_lock = 0;
 	info->add_log_header = 0;
 
+#if defined(MELFAS_GHOST_TOUCH_AUTO_DETECT)
+	if(!IS_ERR_OR_NULL(fp))
+		filp_close(fp, NULL);
+#endif
 }
 
 void tsp_dump(void)
@@ -321,6 +376,58 @@ void tsp_dump(void)
 	printk(KERN_ERR "MELFAS %s: not support\n", __func__);
 }
 
+#endif
+
+#if defined(MELFAS_GHOST_TOUCH_AUTO_DETECT)
+void ghost_timer_handler(unsigned long timer_data)
+{
+	struct mms_ts_info *info = (struct mms_ts_info *)timer_data;
+	int id;
+	unsigned long interval = GHOST_TIMER_INTERVAL;
+
+	if(info->tsp_dump_lock==1){
+		goto restart_timer;
+	}
+	
+	if(!info->ghost_file_created){
+		tsp_dump();
+		goto restart_timer;
+	}
+
+	if(info->data_first_update){
+		info->data_first_update = false;
+		for (id = 0; id < MAX_FINGER_NUM; id++) {
+			info->prev_data[id].x = MMS_INVALID_DATA;
+			info->prev_data[id].y = MMS_INVALID_DATA;
+			info->prev_data[id].z = MMS_INVALID_DATA;
+		}
+	} else {
+		for (id = 0; id < MAX_FINGER_NUM; id++) {
+			if(info->finger_state[id]){
+				if(info->cur_data[id].z < MMS_GHOST_THRESHOLD && info->cur_data[id].x == info->prev_data[id].x
+							&& info->cur_data[id].y == info->prev_data[id].y && info->cur_data[id].z == info->prev_data[id].z){
+					info->data_first_update = true;
+					info->ghost_data.x = info->prev_data[id].x;
+					info->ghost_data.y = info->prev_data[id].y;
+					info->ghost_data.z = info->prev_data[id].z;
+					tsp_dump();
+					interval *= 10;
+					goto restart_timer;
+				}
+				info->prev_data[id].x = info->cur_data[id].x;
+				info->prev_data[id].y = info->cur_data[id].y;
+				info->prev_data[id].z = info->cur_data[id].z;
+			} else {
+				info->prev_data[id].x = MMS_INVALID_DATA;
+				info->prev_data[id].y = MMS_INVALID_DATA;
+				info->prev_data[id].z = MMS_INVALID_DATA;
+			}
+		}
+	}
+
+restart_timer:
+	mod_timer(&info->ghost_timer, get_jiffies_64() + interval);
+}
 #endif
 
 /**
@@ -1105,6 +1212,14 @@ static int mms_probe(struct i2c_client *client, const struct i2c_device_id *id)
 #if defined(CONFIG_SEC_DEBUG_TSP_LOG)
 	INIT_DELAYED_WORK(&info->ghost_check, mms_ghost_touch_check);
 	p_ghost_check = &info->ghost_check;
+#endif
+#if defined(MELFAS_GHOST_TOUCH_AUTO_DETECT)
+	init_timer(&info->ghost_timer);
+	info->ghost_timer.data = (unsigned long)info;
+	info->ghost_timer.function = ghost_timer_handler;
+	info->ghost_timer.expires = jiffies_64 + (GHOST_TIMER_INTERVAL);
+	mod_timer(&info->ghost_timer, get_jiffies_64() + GHOST_TIMER_INTERVAL);
+	info->data_first_update = true;
 #endif
 	info->init = false;
 	tsp_debug_info(true, &client->dev,

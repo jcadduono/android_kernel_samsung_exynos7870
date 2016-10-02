@@ -862,6 +862,7 @@ int decon_enable(struct decon_device *decon)
 	if ((decon->out_type == DECON_OUT_DSI) && (decon->state == DECON_STATE_INIT)) {
 		decon_info("decon in init state\n");
 		decon->state = DECON_STATE_ON;
+		ret = -EBUSY;
 		goto err;
 	}
 
@@ -974,6 +975,9 @@ int decon_enable(struct decon_device *decon)
 		}
 #endif
 		decon_reg_set_int(DECON_INT, &psr, DSI_MODE_SINGLE, 1);
+	} else {
+		if (decon->vsync_info.irq_refcount)
+			decon_reg_set_int(DECON_INT, &psr, DSI_MODE_SINGLE, 1);
 	}
 
 	decon->state = DECON_STATE_ON;
@@ -1149,7 +1153,7 @@ static int decon_blank(int blank_mode, struct fb_info *info)
 
 blank_exit:
 	decon_lpd_unblock(decon);
-	decon_info("%s -- blank_mode : %d\n", __func__, blank_mode);
+	decon_info("%s -- blank_mode : %d, %d\n", __func__, blank_mode, ret);
 	return ret;
 }
 
@@ -2125,7 +2129,7 @@ void decon_set_qos(struct decon_device *decon, struct decon_reg_data *regs,
 
 	if ((is_after && (decon->prev_bw > req_bandwidth)) ||
 	    (!is_after && (decon->prev_bw < req_bandwidth))) {
-	    exynos_update_overlay_wincnt(window_cnt);
+		exynos_update_overlay_wincnt(window_cnt);
 		exynos_update_media_scenario(TYPE_DECON_INT, req_bandwidth, 0);
 		decon->prev_bw = req_bandwidth;
 	}
@@ -3618,7 +3622,7 @@ static int decon_register_esd_funcion(struct decon_device *decon)
 	if (esd->err_irq) {
 		if (devm_request_irq(dev, esd->err_irq, decon_err_handler,
 				err_irqf_type, "err-irq", decon)) {
-			decon_err("%s : faield to request irq for err_fg\n", __func__);
+			decon_err("%s : failed to request irq for err_fg\n", __func__);
 			esd->err_irq = 0;
 			ret--;
 		}
@@ -3627,7 +3631,7 @@ static int decon_register_esd_funcion(struct decon_device *decon)
 	if (esd->det_irq) {
 		if (devm_request_irq(dev, esd->det_irq, decon_det_handler,
 				det_irqf_type, "display-det", decon)) {
-			decon_err("%s : faied to request irq for display det\n", __func__);
+			decon_err("%s : failed to request irq for display det\n", __func__);
 			esd->det_irq = 0;
 			ret--;
 		}
@@ -4009,7 +4013,7 @@ decon_init_done:
 
 	decon_esd_enable_interrupt(decon);
 
-	decon_info("decon registered successfully");
+	decon_info("decon registered successfully\n");
 
 	return 0;
 

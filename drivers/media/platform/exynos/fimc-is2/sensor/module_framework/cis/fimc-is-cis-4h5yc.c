@@ -1624,13 +1624,14 @@ int sensor_4h5yc_cis_compensate_gain_for_extremely_br(struct v4l2_subdev *subdev
 	integration_time = ((cis_data->line_length_pck * coarse_int + (cis_data->line_length_pck - 0xf0)) / vt_pic_clk_freq_mhz);
 	ratio = ((expo << 8) / integration_time);
 
-	if (pre_coarse_int <= 15) {
+	if (pre_coarse_int <= 15 && pre_coarse_int != 0) {
 			compensated_again = (*again * (pre_ratio)) >> 8;
 
-		if (compensated_again < cis_data->min_analog_gain[1]) {
-			*again = cis_data->min_analog_gain[1];
-		} else if (*again >= cis_data->max_analog_gain[1]) {
-			*dgain = (*dgain * (pre_ratio));
+		if (compensated_again < cis_data->min_analog_gain[0]) {
+			*again = cis_data->min_analog_gain[0];
+		} else if (*again >= cis_data->max_analog_gain[0]) {
+			*dgain = (*dgain * (pre_ratio)) >> 8;
+
 		} else {
 			*again = compensated_again;
 		}

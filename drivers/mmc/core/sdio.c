@@ -1302,6 +1302,50 @@ err:
 
 int sdio_reset_comm(struct mmc_card *card)
 {
+#if defined(CONFIG_BCM4343) || defined(CONFIG_BCM43454)
+	struct mmc_host *host = card->host;
+	u32 ocr;
+	u32 rocr;
+	int err;
+
+	printk("%s():\n", __func__);
+	mmc_claim_host(host);
+	
+	mmc_set_timing(host, MMC_TIMING_LEGACY);
+	mmc_set_clock(host, host->f_init);
+
+	sdio_reset(host);
+	mmc_go_idle(host);
+
+	mmc_send_if_cond(host, host->ocr_avail);
+	
+	err = mmc_send_io_op_cond(host, 0, &ocr);
+	if (err)
+		goto err;
+	
+	if (host->ocr_avail_sdio)
+		host->ocr_avail = host->ocr_avail_sdio;
+
+
+	rocr = mmc_select_voltage(host, ocr & ~0x7F);
+	if (!rocr) {
+		err = -EINVAL;
+		printk("%s(): voltage err\n", __func__);
+		goto err;
+	}
+	
+	err = mmc_sdio_init_card(host, rocr, card, 0);
+	if (err)
+		goto err;
+
+	mmc_release_host(host);
+	return 0;
+err:
+	printk("%s: Error resetting SDIO communications (%d)\n",
+	       mmc_hostname(host), err);
+	mmc_release_host(host);
+	return err;
+#else
 	struct mmc_host *host = card->host;
 	u32 ocr;
 	u32 rocr;
@@ -1335,5 +1379,6 @@ err:
 	       mmc_hostname(host), err);
 	mmc_release_host(host);
 	return err;
+#endif
 }
 EXPORT_SYMBOL(sdio_reset_comm);

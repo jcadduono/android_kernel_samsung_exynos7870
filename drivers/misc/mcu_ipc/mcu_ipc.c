@@ -30,6 +30,8 @@ static irqreturn_t mcu_ipc_handler(int irq, void *data)
 
 	id = ((struct mcu_ipc_drv_data *)data)->id;
 	irq_stat = mcu_ipc_readl(id, EXYNOS_MCU_IPC_INTSR0) & 0xFFFF0000;
+	/* Interrupt Clear */
+	mcu_ipc_writel(id, irq_stat, EXYNOS_MCU_IPC_INTCR0);
 
 	for (i = 0; i < 16; i++) {
 		if (irq_stat & (1 << (i + 16))) {
@@ -39,8 +41,6 @@ static irqreturn_t mcu_ipc_handler(int irq, void *data)
 				dev_err(mcu_dat[id].mcu_ipc_dev,
 					"Unregistered INT received.\n");
 
-			/* Interrupt Clear */
-			mcu_ipc_writel(id, 1 << (i + 16), EXYNOS_MCU_IPC_INTCR0);
 			irq_stat &= ~(1 << (i + 16));
 		}
 

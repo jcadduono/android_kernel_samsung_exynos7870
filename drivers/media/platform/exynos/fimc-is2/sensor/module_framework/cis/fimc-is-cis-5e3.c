@@ -41,6 +41,7 @@
 #include "fimc-is-cis-5e3-setB.h"
 
 #include "fimc-is-helper-i2c.h"
+#include "fimc-is-vender-specific.h"
 
 #define SENSOR_NAME "S5K5E3"
 
@@ -1720,9 +1721,13 @@ int cis_5e3_probe(struct i2c_client *client,
 	struct fimc_is_device_sensor *device = NULL;
 	struct fimc_is_device_sensor_peri *sensor_peri = NULL;
 	u32 sensor_id = 0;
+	u32 fnum = 0;
 	char const *setfile;
 	struct device *dev;
 	struct device_node *dnode;
+#if defined(CONFIG_USE_DIRECT_IS_CONTROL) && defined(CONFIG_CAMERA_OTPROM_SUPPORT_FRONT)
+	struct fimc_is_vender_specific *specific = NULL;
+#endif
 
 	BUG_ON(!client);
 	BUG_ON(!fimc_is_dev);
@@ -1773,7 +1778,8 @@ int cis_5e3_probe(struct i2c_client *client,
 	cis->client = client;
 	sensor_peri->module->client = cis->client;
 #if defined(CONFIG_USE_DIRECT_IS_CONTROL) && defined(CONFIG_CAMERA_OTPROM_SUPPORT_FRONT)
-	core->front_cis_client = client;
+	specific = core->vender.private_data;
+	specific->front_cis_client = client;
 #endif
 
 	cis->cis_data = kzalloc(sizeof(cis_shared_data), GFP_KERNEL);
@@ -1786,9 +1792,17 @@ int cis_5e3_probe(struct i2c_client *client,
 
 	/* belows are depend on sensor cis. MUST check sensor spec */
 	cis->bayer_order = OTF_INPUT_ORDER_BAYER_GR_BG;
-	cis->aperture_num = F1_9;
 	cis->use_dgain = true;
 	cis->hdr_ctrl_by_again = false;
+
+	ret = of_property_read_u32(dnode, "fnum", &fnum);
+	if (ret) {
+		warn("fnum read is fail(%d), use default f num", ret);
+		cis->aperture_num = F1_9;
+	} else {
+		probe_info("%s f num %d from dt\n", __func__, fnum);
+		cis->aperture_num = fnum;
+	}
 
 	ret = of_property_read_string(dnode, "setfile", &setfile);
 	if (ret) {

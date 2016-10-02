@@ -116,7 +116,7 @@ struct __attribute__((__packed__)) fifo_frame {
 #define MAX_ACCEL_4G            32768
 
 #define MODEL_NAME		"BHA250"
-#define FIRMWARE_REVISION	15120100
+#define FIRMWARE_REVISION	16041100
 
 
 /* CRYSTAL 32000 = 1 SEC */
@@ -213,12 +213,16 @@ struct bhy_client_data {
 #endif /*~ BHY_TS_LOGGING_SUPPORT */
 
 	struct device *acc_device;
+#if defined(CONFIG_SENSORS_BHI_BMP280)
+	struct device *prs_device;
+#endif
 	struct iio_dev *indio;
 	struct pedometer_data pedo[MAX_LOGGING_SIZE + 1];
 	unsigned int total_step;
 	unsigned int last_total_step;
 	unsigned int step_count;
 	unsigned int last_step_count;
+	bool late_step_report;
 	unsigned char start_index;
 	unsigned char current_index;
 	unsigned short acc_delay;
@@ -244,6 +248,14 @@ struct bhy_client_data {
 	short acc_buffer[3];
 	short acc_cal[3];
 	u16 interrupt_mask;
+#if defined(CONFIG_SENSORS_BHI_BMP280)
+	s32 pressure;
+	s16 temperature;
+	s32 pressure_cal;
+	s32 pressure_sealevel;
+	bool pressure_enabled;
+	unsigned short pressure_delay;
+#endif
 	u8 bandwidth;
 	unsigned int fw_version;
 	int acc_axis;
@@ -280,6 +292,12 @@ int bhy_remove(struct device *dev);
 #ifdef CONFIG_PM
 int bhy_suspend(struct device *dev);
 int bhy_resume(struct device *dev);
+#endif
+
+#if defined(CONFIG_SENSORS_BHI_BMP280)
+int pressure_open_calibration(struct bhy_client_data *data);
+void initialize_pressure_factorytest(struct bhy_client_data*data);
+void remove_pressure_factorytest(struct bhy_client_data *data);
 #endif
 
 #endif /** BHY_CORE_H */

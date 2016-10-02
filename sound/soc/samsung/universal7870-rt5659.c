@@ -890,9 +890,9 @@ static int universal7870_rt5659_audio_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "%s: failed to iio_channel_get\n",
 				__func__);
 	} else {
-		jack_controls.snd_card_registered = 1;
-		jack_controls.set_micbias = rt5659_enable_ear_micbias;
-		jack_controls.get_adc = universal7870_get_jack_adc;
+		sec_jack_set_snd_card_registered(1);
+		sec_jack_register_set_micbias_cb(rt5659_enable_ear_micbias);
+		sec_jack_register_get_adc_cb(universal7870_get_jack_adc);
 	}
 
 	return ret;
@@ -906,6 +906,8 @@ static int universal7870_rt5659_audio_remove(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = platform_get_drvdata(pdev);
 	struct rt5659_machine_priv *priv = card->drvdata;
+
+	sec_jack_set_snd_card_registered(0);
 
 	snd_soc_unregister_component(card->dev);
 	snd_soc_unregister_card(card);

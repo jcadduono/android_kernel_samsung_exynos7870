@@ -15,6 +15,9 @@
 #include <linux/stacktrace.h>
 #include <linux/spinlock.h>
 #include <linux/skbuff.h>
+#include <linux/jiffies.h>
+
+#define DEBUG 1
 
 static DEFINE_SPINLOCK(alloc_lock);
 
@@ -26,6 +29,7 @@ struct wcnss_prealloc {
 	int occupied;
 	unsigned int size;
 	void *ptr;
+	unsigned long time;
 #ifdef CONFIG_SLUB_DEBUG
 	unsigned long stack_trace[WCNSS_MAX_STACK_TRACE];
 	struct stack_trace trace;
@@ -34,91 +38,94 @@ struct wcnss_prealloc {
 
 /* pre-alloced mem for WLAN driver */
 static struct wcnss_prealloc wcnss_skb_allocs[] = {
-	{0, 60 * 1024, NULL},
-	{0, 60 * 1024, NULL},
-	{0, 60 * 1024, NULL},  // 60k*3 for Tx bundle
-	{0, 120 * 1024, NULL},
-	{0, 120 * 1024, NULL},
-	{0, 120 * 1024, NULL}, // 120k*3 for Rx bundle
+	{0, 60 * 1024, NULL, 0},
+	{0, 60 * 1024, NULL, 0},
+	{0, 60 * 1024, NULL, 0},
+	{0, 60 * 1024, NULL, 0},
+	{0, 60 * 1024, NULL, 0},  // 60k*5 for Tx bundle
+	{0, 120 * 1024, NULL, 0},
+	{0, 120 * 1024, NULL, 0},
+	{0, 120 * 1024, NULL, 0},
+	{0, 120 * 1024, NULL, 0},
+	{0, 120 * 1024, NULL, 0}, // 120k*5 for Rx bundle
 };
 
 static struct wcnss_prealloc wcnss_allocs[] = {
-	{0, 8  * 1024, NULL},
-	{0, 8  * 1024, NULL},
-	{0, 8  * 1024, NULL},
-	{0, 8  * 1024, NULL},
-	{0, 8  * 1024, NULL},
-	{0, 8  * 1024, NULL},
-	{0, 8  * 1024, NULL},
-	{0, 8  * 1024, NULL},
-	{0, 8  * 1024, NULL},
-	{0, 8  * 1024, NULL},
-	{0, 8  * 1024, NULL},
-	{0, 8  * 1024, NULL},
-	{0, 8  * 1024, NULL},
-	{0, 8  * 1024, NULL},
-	{0, 8  * 1024, NULL},
-	{0, 8  * 1024, NULL},
-	{0, 8  * 1024, NULL},
-	{0, 8  * 1024, NULL},
-	{0, 8  * 1024, NULL},
-	{0, 8  * 1024, NULL},
-	{0, 8  * 1024, NULL},
-	{0, 8  * 1024, NULL},
-	{0, 8  * 1024, NULL},
-	{0, 8  * 1024, NULL}, // 8 * 24
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL},
-	{0, 12 * 1024, NULL}, // 12 * 40
-	{0, 24 * 1024, NULL},
-	{0, 24 * 1024, NULL}, // 24 * 2
-	{0, 32 * 1024, NULL},
-	{0, 32 * 1024, NULL}, // 32 * 2
-	{0, 42 * 1024, NULL},
-	{0, 42 * 1024, NULL},
-	{0, 42 * 1024, NULL},
-	{0, 42 * 1024, NULL}, // 42 * 4
-	{0, 76 * 1024, NULL},
-	{0, 76 * 1024, NULL}, // 76 * 2
-	/* Jamie */
-	{0, 623 * 1024, NULL},
+	{0, 8  * 1024, NULL, 0},
+	{0, 8  * 1024, NULL, 0},
+	{0, 8  * 1024, NULL, 0},
+	{0, 8  * 1024, NULL, 0},
+	{0, 8  * 1024, NULL, 0},
+	{0, 8  * 1024, NULL, 0},
+	{0, 8  * 1024, NULL, 0},
+	{0, 8  * 1024, NULL, 0},
+	{0, 8  * 1024, NULL, 0},
+	{0, 8  * 1024, NULL, 0},
+	{0, 8  * 1024, NULL, 0},
+	{0, 8  * 1024, NULL, 0},
+	{0, 8  * 1024, NULL, 0},
+	{0, 8  * 1024, NULL, 0},
+	{0, 8  * 1024, NULL, 0},
+	{0, 8  * 1024, NULL, 0},
+	{0, 8  * 1024, NULL, 0},
+	{0, 8  * 1024, NULL, 0},
+	{0, 8  * 1024, NULL, 0},
+	{0, 8  * 1024, NULL, 0},
+	{0, 8  * 1024, NULL, 0},
+	{0, 8  * 1024, NULL, 0},
+	{0, 8  * 1024, NULL, 0},
+	{0, 8  * 1024, NULL, 0}, // 8 * 24
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0},
+	{0, 12 * 1024, NULL, 0}, // 12 * 40
+	{0, 24 * 1024, NULL, 0},
+	{0, 24 * 1024, NULL, 0}, // 24 * 2
+	{0, 32 * 1024, NULL, 0},
+	{0, 32 * 1024, NULL, 0}, // 32 * 2
+	{0, 42 * 1024, NULL, 0},
+	{0, 42 * 1024, NULL, 0},
+	{0, 42 * 1024, NULL, 0},
+	{0, 42 * 1024, NULL, 0}, // 42 * 4
+	{0, 76 * 1024, NULL, 0},
+	{0, 76 * 1024, NULL, 0}, // 76 * 2
+	{0, 1504 * 1024, NULL}, 
 };
 
 int wcnss_prealloc_init(void)
@@ -128,6 +135,7 @@ int wcnss_prealloc_init(void)
 	for (i = 0; i < ARRAY_SIZE(wcnss_allocs); i++) {
 		wcnss_allocs[i].occupied = 0;
 		wcnss_allocs[i].ptr = kmalloc(wcnss_allocs[i].size, GFP_KERNEL);
+		wcnss_allocs[i].time = 0;
 		if (wcnss_allocs[i].ptr == NULL)
 			return -ENOMEM;
 	}
@@ -135,6 +143,7 @@ int wcnss_prealloc_init(void)
 	for (i = 0; i < ARRAY_SIZE(wcnss_skb_allocs); i++) {
 		wcnss_skb_allocs[i].occupied = 0;
 		wcnss_skb_allocs[i].ptr = dev_alloc_skb(wcnss_skb_allocs[i].size);
+		wcnss_skb_allocs[i].time = 0;
 		if (wcnss_skb_allocs[i].ptr == NULL)
 			return -ENOMEM;
 	}
@@ -180,6 +189,11 @@ static inline void wcnss_prealloc_save_stack_trace(struct wcnss_prealloc *entry)
 }
 #endif
 
+static unsigned long wcnss_get_time(void)
+{
+	return jiffies_to_msecs(jiffies);
+}
+
 void *wcnss_prealloc_get(unsigned int size)
 {
 	int i = 0;
@@ -199,7 +213,9 @@ void *wcnss_prealloc_get(unsigned int size)
 		}
 
 		wcnss_allocs[i].occupied = 1;
+		wcnss_allocs[i].time = wcnss_get_time();
 		spin_unlock_irqrestore(&alloc_lock, flags);
+		wcnss_allocs[i].time = wcnss_get_time();
 		wcnss_prealloc_save_stack_trace(&wcnss_allocs[i]);
 		pr_err("wcnss: Get Memory for FW RAMDUMP from prealloc\n");
 		return wcnss_allocs[i].ptr;
@@ -221,6 +237,15 @@ void *wcnss_prealloc_get(unsigned int size)
 
 	pr_err("wcnss: %s: prealloc not available for size: %d\n",
 			__func__, size);
+#ifdef DEBUG
+	printk("time: %16lu\n", wcnss_get_time());
+	for (i = 0; i < ARRAY_SIZE(wcnss_allocs); i++) {
+		if (wcnss_allocs[i].occupied)
+			printk("%02d: size %08d, time: %16lu\n", i, wcnss_allocs[i].size, wcnss_allocs[i].time);
+		else
+			printk("%02d: size %08d is free", i, wcnss_allocs[i].size);
+	}
+#endif
 
 	return NULL;
 }
@@ -235,6 +260,7 @@ int wcnss_prealloc_put(void *ptr)
 	for (i = 0; i < ARRAY_SIZE(wcnss_allocs); i++) {
 		if (wcnss_allocs[i].ptr == ptr) {
 			wcnss_allocs[i].occupied = 0;
+			wcnss_allocs[i].time = 0;
 			spin_unlock_irqrestore(&alloc_lock, flags);
 			return 1;
 		}
@@ -258,6 +284,7 @@ struct sk_buff *wcnss_skb_prealloc_get(unsigned int size)
 		if (wcnss_skb_allocs[i].size > size) {
 			/* we found the slot */
 			wcnss_skb_allocs[i].occupied = 1;
+			wcnss_skb_allocs[i].time = wcnss_get_time();
 			spin_unlock_irqrestore(&alloc_lock, flags);
 			wcnss_prealloc_save_stack_trace(&wcnss_allocs[i]);
 			return wcnss_skb_allocs[i].ptr;
@@ -267,6 +294,15 @@ struct sk_buff *wcnss_skb_prealloc_get(unsigned int size)
 
 	pr_err("wcnss: %s: prealloc not available for size: %d\n",
 			__func__, size);
+#ifdef DEBUG
+	printk("current time: %16lu\n", wcnss_get_time());
+	for (i = 0; i < ARRAY_SIZE(wcnss_skb_allocs); i++) {
+		if (wcnss_skb_allocs[i].occupied)
+			printk("%02d: size %08d, time: %16lu\n", i, wcnss_skb_allocs[i].size, wcnss_skb_allocs[i].time);
+		else
+			printk("%02d: size %08d is free", i, wcnss_skb_allocs[i].size);
+	}
+#endif
 
 	return NULL;
 }
@@ -281,6 +317,7 @@ int wcnss_skb_prealloc_put(struct sk_buff *skb)
 	for (i = 0; i < ARRAY_SIZE(wcnss_skb_allocs); i++) {
 		if (wcnss_skb_allocs[i].ptr == skb) {
 			wcnss_skb_allocs[i].occupied = 0;
+			wcnss_skb_allocs[i].time = 0;
 			spin_unlock_irqrestore(&alloc_lock, flags);
 			return 1;
 		}

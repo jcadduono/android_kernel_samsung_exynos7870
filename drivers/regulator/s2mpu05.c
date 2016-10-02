@@ -40,7 +40,54 @@ struct s2mpu05_info {
 	bool g3d_en;
 	const char *g3d_en_addr;
 	const char *g3d_en_pin;
+#ifdef CONFIG_SEC_DEBUG_PMIC
+	struct class *pmic_test_class;
+	struct notifier_block pm_notifier;
+#endif
 };
+
+#ifdef CONFIG_SEC_DEBUG_PMIC
+static struct device *pmic_test_dev;
+
+#define PMIC_NAME	"s2mpu05"
+#define PMIC_NUM_OF_BUCKS	5
+#define PMIC_NUM_OF_LDOS	35
+
+static int buck_addrs[PMIC_NUM_OF_BUCKS] = { 0x1a, 0x1c, 0x20, 0x23, 0x25 };
+static int ldo_addrs[PMIC_NUM_OF_LDOS] = { 0x2b, 0x2c, 0x2d, 0x2e, 0x2f, 0x30, 0x31, 0x32, 0x33, 0x35, /* LDO1~10 */
+	0x36, 0x38, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3f, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, /* LDO11~24(CP) */
+	0x47, 0x48, 0x49, 0x4a, 0x4b, 0x4c, 0x4d, 0x4e, 0x4f, 0x50, 0x51 }; /* LDO25~35 */
+
+static int s2m_debug_reg(struct regulator_dev *rdev, char *str)
+{
+	int ret;
+	unsigned int val;
+	int i;
+
+	if (!static_info)
+		return 0;
+
+	for (i = 0; i < PMIC_NUM_OF_BUCKS; ++i) {
+		if (buck_addrs[i] == rdev->desc->enable_reg) {
+			ret = sec_reg_read(static_info->iodev, rdev->desc->enable_reg, &val);
+			pr_info("%s %s: BUCK%d 0x%x = 0x%x (EN=%d)\n", \
+					PMIC_NAME, str, i+1, rdev->desc->enable_reg, val, (val >> 6));
+			return ret;
+		}
+	}
+
+	for (i = 0; i < PMIC_NUM_OF_LDOS; ++i) {
+		if (ldo_addrs[i] == rdev->desc->enable_reg) {
+			ret = sec_reg_read(static_info->iodev, rdev->desc->enable_reg, &val);
+			pr_info("%s %s: LDO%d 0x%x = 0x%x (EN=%d)\n", \
+					PMIC_NAME, str, i+1, rdev->desc->enable_reg, val, (val >> 6));
+			return ret;
+		}
+	}
+
+	return 0;
+}
+#endif
 
 /* Some LDOs supports [LPM/Normal]ON mode during suspend state */
 static int s2m_set_mode(struct regulator_dev *rdev,
@@ -71,6 +118,10 @@ static int s2m_set_mode(struct regulator_dev *rdev,
 	if (ret)
 		return ret;
 
+#ifdef CONFIG_SEC_DEBUG_PMIC
+	s2m_debug_reg(rdev, "set_mode");
+#endif
+
 	s2mpu05->opmode[id] = val;
 	return 0;
 }
@@ -78,24 +129,34 @@ static int s2m_set_mode(struct regulator_dev *rdev,
 static int s2m_enable(struct regulator_dev *rdev)
 {
 	struct s2mpu05_info *s2mpu05 = rdev_get_drvdata(rdev);
+	int ret;
 
-	return sec_reg_update(s2mpu05->iodev, rdev->desc->enable_reg,
+	ret = sec_reg_update(s2mpu05->iodev, rdev->desc->enable_reg,
 				  s2mpu05->opmode[rdev_get_id(rdev)],
 				  rdev->desc->enable_mask);
+#ifdef CONFIG_SEC_DEBUG_PMIC
+	s2m_debug_reg(rdev, "regulator_enable");
+#endif
+	return ret;
 }
 
 static int s2m_disable_regmap(struct regulator_dev *rdev)
 {
 	struct s2mpu05_info *s2mpu05 = rdev_get_drvdata(rdev);
 	unsigned int val;
+	int ret;
 
 	if (rdev->desc->enable_is_inverted)
 		val = rdev->desc->enable_mask;
 	else
 		val = 0;
 
-	return sec_reg_update(s2mpu05->iodev, rdev->desc->enable_reg,
+	ret = sec_reg_update(s2mpu05->iodev, rdev->desc->enable_reg,
 				  val, rdev->desc->enable_mask);
+#ifdef CONFIG_SEC_DEBUG_PMIC
+	s2m_debug_reg(rdev, "regulator_disable");
+#endif
+	return ret;
 }
 
 static int s2m_is_enabled_regmap(struct regulator_dev *rdev)
@@ -273,6 +334,105 @@ u32 pmic_rev_get(void)
 {
 	return SEC_PMIC_REV(static_info->iodev);
 }
+
+#ifdef CONFIG_SEC_DEBUG_PMIC
+static int _pmic_debug_print_all_regulators(void)
+{
+	unsigned int val;
+	int i;
+
+	if (!static_info)
+		return 0;
+
+	for (i = 0; i < PMIC_NUM_OF_BUCKS; ++i) {
+		sec_reg_read(static_info->iodev, buck_addrs[i], &val);
+		pr_info("%s Buck%d 0x%0x = 0x%x (EN=0x%x)\n", \
+			PMIC_NAME, i+1, buck_addrs[i], val, (val >> 6));
+	}
+
+	for (i = 0; i < PMIC_NUM_OF_LDOS; ++i) {
+		sec_reg_read(static_info->iodev, ldo_addrs[i], &val);
+		pr_info("%s LDO%02d 0x%0x = 0x%x (EN=0x%x)\n", \
+			PMIC_NAME, i+1, ldo_addrs[i], val, (val >> 6));
+	}
+
+	return 0;
+}
+
+static int buf_to_i2c_read(const char *buf)
+{
+	unsigned int addr, val;
+	int ret;
+
+	if (!static_info)
+		return 0;
+
+	sscanf(buf, "0x%02x", &addr);
+
+	if (addr == 0xff) {
+		pr_info("print all regulators\n");
+		_pmic_debug_print_all_regulators();
+		return 0;
+	}
+
+	ret = sec_reg_read(static_info->iodev, addr, &val);
+	if (ret < 0)
+		return ret;
+
+	pr_info("%s %s: 0x%02x 0x%02x\n", PMIC_NAME, __func__, addr, val);
+	return ret;
+}
+
+static int buf_to_i2c_write(const char *buf)
+{
+	unsigned int addr, val;
+	int ret;
+
+	if (!static_info)
+		return 0;
+
+	sscanf(buf, "0x%02x 0x%02x", &addr, &val);
+
+	ret = sec_reg_write(static_info->iodev, addr, val);
+	if (ret < 0)
+		return ret;
+
+	pr_info("%s %s: 0x%02x 0x%02x\n", PMIC_NAME, __func__, addr, val);
+	return ret;
+}
+
+static ssize_t pmic_i2c_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE,
+			"ex)\n read\n echo \"0x1a\" > pmic_i2c\n write\n echo \"0x1a 0x00\" > pmic_i2c\n");
+}
+
+static ssize_t pmic_i2c_store(struct device *dev, struct device_attribute *attr,
+				const char *buf, size_t count)
+{
+	if (strlen(buf) <= 3)
+		pr_info("%s : wrong input\n", __func__);
+	else if (strlen(buf) > 3 && strlen(buf) <= 5)	// read
+		buf_to_i2c_read(buf);
+	else if (strlen(buf) > 5 && strlen(buf) <= 10)
+		buf_to_i2c_write(buf);
+	return count;
+}
+
+static DEVICE_ATTR(pmic_i2c, 0644, pmic_i2c_show, pmic_i2c_store);
+
+static int pmic_debug_print_all_regulators(struct notifier_block *this,
+		unsigned long event, void *ptr)
+{
+	switch (event) {
+	case PM_SUSPEND_PREPARE:
+		_pmic_debug_print_all_regulators();
+		break;
+	}
+	return NOTIFY_DONE;
+}
+#endif
 
 static struct regulator_ops s2mpu05_ldo_ops = {
 	.list_voltage		= regulator_list_voltage_linear,
@@ -605,6 +765,23 @@ static int s2mpu05_pmic_probe(struct platform_device *pdev)
 	sec_reg_write(iodev, 0x65, 0x76);	/* seq. LDO15, LDO14 */
 	sec_reg_write(iodev, 0x71, 0x80);	/* seq. L11~L4 */
 	sec_reg_write(iodev, 0x72, 0x0F);	/* seq. L19~L12 */
+
+#ifdef CONFIG_SEC_DEBUG_PMIC
+	s2mpu05->pmic_test_class = class_create(THIS_MODULE, "pmic_test");
+	pmic_test_dev = device_create(s2mpu05->pmic_test_class, NULL, 0, NULL, "s2mpu05");
+	ret = device_create_file(pmic_test_dev, &dev_attr_pmic_i2c);
+	if (ret) {
+		dev_err(&pdev->dev, "create file to control i2c\n");
+		return ret;
+	}
+	dev_set_drvdata(pmic_test_dev, s2mpu05);
+	s2mpu05->pm_notifier.notifier_call = pmic_debug_print_all_regulators;
+	ret = register_pm_notifier(&s2mpu05->pm_notifier);
+	if (ret) {
+		dev_err(&pdev->dev, "Failed to setup pm notifier\n");
+		goto err;
+	}
+#endif
 
 	return 0;
 

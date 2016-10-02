@@ -1373,7 +1373,7 @@ static int stk3013_regulator_onoff(struct device *dev, bool onoff)
 			SENSOR_ERR("cannot get vdd\n");
 			return -ENOMEM;
 		}
-		regulator_set_voltage(ps_data->vdd, 3300000, 3300000);
+		regulator_set_voltage(ps_data->vdd, 2850000, 2850000);
 	}
 
 	if (!ps_data->vio || IS_ERR(ps_data->vio)) {

@@ -1108,6 +1108,9 @@ s3c24xx_i2c_parse_dt(struct device_node *np, struct s3c24xx_i2c *i2c)
 	if (!np)
 		return;
 
+#ifdef CONFIG_FIX_I2C_BUS_NUM
+	if (of_property_read_u32(np, "samsung,i2c-bus-num", &pdata->bus_num))
+#endif
 	pdata->bus_num = -1; /* i2c bus number is dynamically assigned */
 	of_property_read_u32(np, "samsung,i2c-sda-delay", &pdata->sda_delay);
 	of_property_read_u32(np, "samsung,i2c-slave-addr", &pdata->slave_addr);

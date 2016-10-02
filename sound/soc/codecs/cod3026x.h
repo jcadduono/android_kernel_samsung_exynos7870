@@ -33,6 +33,10 @@ struct cod3026x_jack_det {
 	bool jack_det;
 	bool mic_det;
 	bool button_det;
+#ifdef CONFIG_SND_SOC_COD30XX_EXT_ANT
+	bool ant_det;
+	bool ant_irq;
+#endif
 	unsigned int button_code;
 	int privious_button_state;
 	int adc_val;
@@ -56,7 +60,10 @@ struct cod3026x_priv {
 
 	int num_inputs;
 	int int_gpio;
-
+#ifdef CONFIG_SND_SOC_COD30XX_EXT_ANT
+	int ant_det_gpio;
+	int ant_adc_range;
+#endif
 	struct pinctrl *pinctrl;
 	unsigned int spk_ena:2;
 
@@ -653,6 +660,23 @@ struct cod3026x_priv {
 #define EN_MIX_LNRL_SHIFT       6
 #define EN_MIX_LNRL_MASK        BIT(EN_MIX_LNRL_SHIFT)
 
+#define EN_MIX_PGA_MIC1L_SHIFT       5
+#define EN_MIX_PGA_MIC1L_MASK        BIT(EN_MIX_PGA_MIC1L_SHIFT)
+
+#define EN_MIX_PGA_MIC1R_SHIFT       4
+#define EN_MIX_PGA_MIC1R_MASK        BIT(EN_MIX_PGA_MIC1R_SHIFT)
+
+#define EN_MIX_PGA_MIC2L_SHIFT       3
+#define EN_MIX_PGA_MIC2L_MASK        BIT(EN_MIX_PGA_MIC2L_SHIFT)
+
+#define EN_MIX_PGA_MIC2R_SHIFT       2
+#define EN_MIX_PGA_MIC2R_MASK        BIT(EN_MIX_PGA_MIC2R_SHIFT)
+
+#define EN_MIX_PGA_MIC3L_SHIFT       1
+#define EN_MIX_PGA_MIC3L_MASK        BIT(EN_MIX_PGA_MIC3L_SHIFT)
+
+#define EN_MIX_PGA_MIC3R_SHIFT       0
+#define EN_MIX_PGA_MIC3R_MASK        BIT(EN_MIX_PGA_MIC3R_SHIFT)
 
 /* COD3026X_30_VOL_HPL */
 /* COD3026X_31_VOL_HPR */

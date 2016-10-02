@@ -51,8 +51,33 @@ static ssize_t hall_detect_show(struct device *dev,
 }
 static DEVICE_ATTR(hall_detect, 0664, hall_detect_show, NULL);
 
+#if defined(CONFIG_CHECK_BOOKCOVER_HALL)
+
+static int gpio_check_bookcover;
+static int enable_check_bookcover;
+static ssize_t check_bookcover_detect_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+    if(enable_check_bookcover)
+    {
+	    if (gpio_get_value(gpio_check_bookcover)) {
+		    sprintf(buf, "OPEN\n");
+	    } else {
+		    sprintf(buf, "CLOSE\n");
+	    }
+    } else {
+        sprintf(buf, "OPEN\n");
+    }
+	return strlen(buf);
+}
+static DEVICE_ATTR(check_bookcover_detect, 0664, check_bookcover_detect_show, NULL);
+#endif
+
 static struct attribute *hall_attrs[] = {
 	&dev_attr_hall_detect.attr,
+#if defined(CONFIG_CHECK_BOOKCOVER_HALL)
+    &dev_attr_check_bookcover_detect.attr,
+#endif
 	NULL,
 };
 
@@ -202,6 +227,15 @@ static int of_hall_data_parsing_dt(struct hall_drvdata *ddata)
 	}
 	ddata->irq_flip_cover = gpio;
 
+#if defined(CONFIG_CHECK_BOOKCOVER_HALL)	
+    	gpio = of_get_named_gpio_flags(np_haptic, "hall,gpio_check_bookcover", 0, &flags);
+	if (gpio < 0) {
+		pr_info("%s: fail to get check_bookcover \n", __func__ );
+	} else {
+        	gpio_check_bookcover = gpio;
+        	enable_check_bookcover = 1;
+    	}
+#endif
 	return 0;
 }
 #endif

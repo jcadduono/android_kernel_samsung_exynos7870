@@ -95,7 +95,8 @@ extern int sc_log_level;
 		(x == V4L2_PIX_FMT_NV21M) || (x == V4L2_PIX_FMT_YUV420M) || \
 		(x == V4L2_PIX_FMT_YVU420M) || (x == V4L2_PIX_FMT_NV12MT_16X16) || \
 		(x == V4L2_PIX_FMT_NV12N) || (x == V4L2_PIX_FMT_NV12N_RGB32))
-#define sc_fmt_is_ayv12(x)	((x) == V4L2_PIX_FMT_YVU420)
+#define sc_fmt_is_ayv12(x)	((x == V4L2_PIX_FMT_YVU420) || \
+		(x == V4L2_PIX_FMT_YVU420_RGB32))
 #define sc_dith_val(a, b, c)	((a << SCALER_DITH_R_SHIFT) |	\
 		(b << SCALER_DITH_G_SHIFT) | (c << SCALER_DITH_B_SHIFT))
 
@@ -131,6 +132,7 @@ extern int sc_log_level;
 #define V4L2_PIX_FMT_NV21M_RGB32   v4l2_fourcc('V', 'N', 'R', 'G') /* 21  Y/CbCr 4:2:0 RGBA  */
 #define V4L2_PIX_FMT_NV21M_BGR32   v4l2_fourcc('V', 'N', 'B', 'G') /* 21  Y/CbCr 4:2:0 ARGB  */
 #define V4L2_PIX_FMT_NV21_RGB32    v4l2_fourcc('V', 'N', '1', 'R') /* 21  Y/CbCr 4:2:0 RGBA */
+#define V4L2_PIX_FMT_YVU420_RGB32  v4l2_fourcc('Y', 'V', 'R', 'G') /* 12  YVU 4:2:0 RGBA  */
 
 /* for denoising filter */
 #define SC_CID_DNOISE_FT		(V4L2_CID_EXYNOS_BASE + 150)
@@ -288,8 +290,8 @@ struct sc_fmt {
 	u32	pixelformat;
 	u32	cfg_val;
 	u8	bitperpixel[SC_MAX_PLANES];
-	u8	num_planes:2;
-	u8	num_comp:2;
+	u8	num_planes:3;
+	u8	num_comp:3;
 	u8	h_shift:1;
 	u8	v_shift:1;
 	u8	is_rgb:1;

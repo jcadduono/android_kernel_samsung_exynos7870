@@ -884,6 +884,18 @@ static int exynos_smfc_probe(struct platform_device *pdev)
 	if (!pm_runtime_enabled(&pdev->dev) && !smfc_excuse_cfw(&pdev->dev))
 		return -EACCES;
 
+	if (!of_property_read_u32(pdev->dev.of_node, "smfc,int_qos_minlock",
+				(u32 *)&smfc->qosreq_int_level)) {
+		if (smfc->qosreq_int_level > 0) {
+			pm_qos_add_request(&smfc->qosreq_int,
+					PM_QOS_DEVICE_THROUGHPUT, 0);
+			dev_info(&pdev->dev, "INT Min.Lock Freq. = %d\n",
+					smfc->qosreq_int_level);
+		} else {
+			smfc->qosreq_int_level = 0;
+		}
+	}
+
 	ret = smfc_find_hw_version(&pdev->dev, smfc);
 	if (ret < 0)
 		return ret;
@@ -927,6 +939,7 @@ static int exynos_smfc_remove(struct platform_device *pdev)
 {
 	struct smfc_dev *smfc = platform_get_drvdata(pdev);
 
+	pm_qos_remove_request(&smfc->qosreq_int);
 	vb2_ion_destroy_context(smfc->vb2_alloc_ctx);
 	smfc_deinit_clock(smfc);
 

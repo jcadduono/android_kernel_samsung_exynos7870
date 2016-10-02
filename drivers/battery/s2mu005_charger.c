@@ -65,7 +65,7 @@ struct s2mu005_charger_data {
 	int irq_det_bat;
 	int irq_chg;
 	u8 fg_clock;
-	int fg_mode;
+	int fg_mode;	
 };
 
 static enum power_supply_property sec_charger_props[] = {
@@ -181,6 +181,26 @@ static void s2mu005_charger_otg_control(struct s2mu005_charger_data *charger,
 #endif
 }
 
+static void s2mu005_wdt_control(struct s2mu005_charger_data *charger,
+		int onoff)
+{
+	u8 temp;
+	
+	if (onoff > 0) {
+		s2mu005_read_reg(charger->client, 0x1A, &temp);
+		temp &= ~0x3;
+		temp |= 0x2;
+		s2mu005_write_reg(charger->client, 0x1A, temp);
+		pr_info("%s : Watchdog Timer Enabled,\n",	__func__);
+	} else {
+		s2mu005_read_reg(charger->client, 0x1A, &temp);
+		temp &= ~0x3;
+		temp |= 0x1;
+		s2mu005_write_reg(charger->client, 0x1A, temp);
+		pr_info("%s : Watchdog Timer Disabled,\n",	__func__);
+	}
+}
+
 static void s2mu005_enable_charger_switch(struct s2mu005_charger_data *charger,
 		int onoff)
 {
@@ -203,10 +223,12 @@ static void s2mu005_enable_charger_switch(struct s2mu005_charger_data *charger,
 			2 << REG_MODE_SHIFT, REG_MODE_MASK);
 		msleep(150);
 		s2mu005_update_reg(charger->client, 0x2A, 1 << 3, 0x08); // set async time 20msec recover
+		s2mu005_wdt_control(charger, 1); //watchdog timer enable
 	} else {
 		pr_info("[DEBUG] %s: turn off charger\n", __func__);
 		s2mu005_update_reg(charger->client, S2MU005_CHG_CTRL0,
 			0 << REG_MODE_SHIFT, REG_MODE_MASK);
+		s2mu005_wdt_control(charger, 0); //watchdog timer disable
 	}
 }
 
@@ -430,9 +452,9 @@ static bool s2mu005_chg_init(struct s2mu005_charger_data *charger)
 
 	charger->fg_clock = temp;
 
-	s2mu005_read_reg(charger->client, 0x20, &temp); //topoff timer 90min
-	temp &= ~0x38;
-	temp |= 0x30;
+	s2mu005_read_reg(charger->client, 0x20, &temp); //topoff timer 90min, watchdog timer 80sec
+	temp &= ~0x3F;
+	temp |= 0x35;
 	s2mu005_write_reg(charger->client, 0x20, temp);
 	
 	/* float voltage */
@@ -487,6 +509,12 @@ static void s2mu005_charger_initialize(struct s2mu005_charger_data *charger)
 	s2mu005_write_reg(charger->client, 0x87, temp);
 
 	s2mu005_write_reg(charger->client, 0x27, 0x51);
+	
+	s2mu005_read_reg(charger->client, 0x20, &temp); //topoff timer 90min, watchdog timer 80sec
+	temp &= ~0x3F;
+	temp |= 0x35;
+	s2mu005_write_reg(charger->client, 0x20, temp);
+	
 	s2mu005_write_reg(charger->client, 0x1A, 0x91);
 
 	s2mu005_read_reg(charger->client, 0x13, &temp);
@@ -611,11 +639,36 @@ static bool s2mu005_get_batt_present(struct i2c_client *iic)
 	return (ret & DET_BAT_STATUS_MASK) ? true : false;
 }
 
+static void s2mu005_wdt_clear(struct s2mu005_charger_data *charger)
+{
+	u8 status3;
+	u8 ctrl13;
+	
+	s2mu005_read_reg(charger->client, S2MU005_CHG_STATUS3, &status3);
+
+	s2mu005_read_reg(charger->client, S2MU005_CHG_CTRL13, &ctrl13);
+	ctrl13 &= ~0x1;
+	ctrl13 |= 0x1;
+	s2mu005_write_reg(charger->client, S2MU005_CHG_CTRL13, ctrl13); /* wdt clear */
+	
+	status3 &= 0x0f;
+
+	if (status3 == 0x05) {
+		dev_info(&charger->client->dev,
+			"%s: watchdog error status, enable charger\n", __func__);
+		s2mu005_enable_charger_switch(charger, charger->is_charging);
+	}
+}
+
 static int s2mu005_get_charging_health(struct s2mu005_charger_data *charger)
 {
 	u8 ret;
 
 	s2mu005_read_reg(charger->client, S2MU005_CHG_STATUS1, &ret);
+	
+	if(charger->is_charging) {
+		s2mu005_wdt_clear(charger);
+	}
 
 	if (ret < 0)
 		return POWER_SUPPLY_HEALTH_UNKNOWN;
@@ -815,6 +868,10 @@ static int sec_chg_set_property(struct power_supply *psy,
 			s2mu005_write_reg(charger->client, 0x2A, 0x10);
 			s2mu005_write_reg(charger->client, 0x23, 0x15);
 			s2mu005_write_reg(charger->client, 0x24, 0x44);
+			s2mu005_update_reg(charger->client, 0xA1, 0, 0x01 << 6);
+		} else {
+			if (factory_mode)
+				s2mu005_update_reg(charger->client, 0xA1, 1, 0x01 << 6);
 		}
 		break;
 	case POWER_SUPPLY_PROP_RESISTANCE:

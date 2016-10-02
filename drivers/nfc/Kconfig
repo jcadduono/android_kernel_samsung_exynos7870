@@ -101,6 +101,12 @@ config NFC_PORT100
 
 	  If unsure, say N.
 
+config NFC_FELICA
+        bool "NFC Felica support driver"
+        default n
+        help
+          N5 driver can support addtional specification for Felica.
+
 source "drivers/nfc/pn544/Kconfig"
 source "drivers/nfc/microread/Kconfig"
 source "drivers/nfc/nfcmrvl/Kconfig"
@@ -131,4 +137,15 @@ config SEC_NFC_IF_I2C
 	bool "I2C"
 	depends on SEC_NFC_PRODUCT_N5
 endchoice
+config SEC_NFC_LDO_CONTROL
+	bool "SEC NFC LDO CONTROL"
+	depends on SEC_NFC
+	default n
+	help
+	  SAMSUNG SEC NFC LDO CONTROL feature.
+	  This feature provides support for SAMSUNG NFC products.
+	  You should select this feature if your NFC product uses ldo control of i2c.
+
+	  Say Y here to compile support for SEC NFC LDO CONTROL feature into the
+	  kernel.
 

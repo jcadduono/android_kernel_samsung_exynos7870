@@ -1487,13 +1487,12 @@ static int sm5705_get_all_value(struct i2c_client *client)
     return 0;
 }
 
-#if 0
 static int sm5705_fg_get_jig_mode_real_vbat(struct i2c_client *client)
 {
 	int cntl, ret;
 
 	cntl = sm5705_fg_i2c_read_word(client, SM5705_REG_CNTL);
-	pr_info("start, CNTL=0x%x\n", cntl);
+	pr_info("%s: start, CNTL=0x%x\n", __func__, cntl);
 
 	if(sm5705_fg_check_reg_init_need(client))
 	{
@@ -1506,19 +1505,23 @@ static int sm5705_fg_get_jig_mode_real_vbat(struct i2c_client *client)
 	msleep(300);
 
 	ret = sm5705_get_vbat(client);
-	pr_info("jig mode real batt V = %d, CNTL=0x%x\n", ret, cntl);
+	pr_info("%s: jig mode real batt V = %d, CNTL=0x%x\n", __func__, ret, cntl);
 
 	cntl = sm5705_fg_i2c_read_word(client, SM5705_REG_CNTL);
 	cntl = cntl & (~ENABLE_MODE_nENQ4);
 	sm5705_fg_i2c_write_word(client, SM5705_REG_CNTL, cntl);
 
+	pr_info("%s: end_1, CNTL=0x%x\n", __func__, cntl);
 	msleep(300);
 
-	pr_info("end, CNTL=0x%x\n", cntl);
+	cntl = sm5705_fg_i2c_read_word(client, SM5705_REG_CNTL);
+	cntl = cntl & (~ENABLE_MODE_nENQ4);
+	sm5705_fg_i2c_write_word(client, SM5705_REG_CNTL, cntl);
+
+	pr_info("%s: end_2, CNTL=0x%x\n", __func__, cntl);
 
 	return ret;
 }
-#endif
 
 #ifdef CONFIG_OF
 static int get_battery_id(struct sec_fuelgauge_info *fuelgauge)
@@ -2158,6 +2161,9 @@ static int sm5705_fg_get_property(struct power_supply *psy,
 			break;
 		}
 		break;
+	case POWER_SUPPLY_PROP_INBAT_VOLTAGE_FGSRC_SWITCHING:
+		val->intval = sm5705_fg_get_jig_mode_real_vbat(fuelgauge->client) / 10;
+		break;
 	/* Current (mA) */
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
 		sm5705_get_curr(fuelgauge->client);
@@ -2287,6 +2293,8 @@ static int sm5705_fg_set_property(struct power_supply *psy,
 		fuelgauge->info.temperature = val->intval;
 		break;
 	case POWER_SUPPLY_PROP_TEMP_AMBIENT:
+		break;
+	case POWER_SUPPLY_PROP_INBAT_VOLTAGE_FGSRC_SWITCHING:
 		break;
 	case POWER_SUPPLY_PROP_ENERGY_FULL_DESIGN:
 		pr_info("capacity_max changed, %d -> %d\n", fuelgauge->capacity_max, val->intval);

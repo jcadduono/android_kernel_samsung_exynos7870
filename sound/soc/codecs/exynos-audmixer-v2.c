@@ -19,6 +19,7 @@
 #include <linux/clk.h>
 #include <linux/io.h>
 #include <linux/pm_runtime.h>
+#include <linux/modem_notifier.h>
 
 #include <sound/exynos.h>
 #include <sound/jack.h>
@@ -220,7 +221,9 @@ struct audmixer_priv {
 	bool update_fw;
 	bool is_regs_stored;
 	const struct audmixer_hw_config *hw;
-
+	unsigned long cp_event;
+	struct work_struct cp_notification_work;
+	struct workqueue_struct *mixer_cp_wq;
 };
 
 struct audmixer_priv *g_audmixer;
@@ -903,6 +906,56 @@ bool is_cp_aud_enabled(void)
 	return g_audmixer->is_active;
 }
 EXPORT_SYMBOL_GPL(is_cp_aud_enabled);
+
+/* thread run whenever the cp event received */
+static void audmixer_cp_notification_work(struct work_struct *work)
+{
+	struct audmixer_priv *audmixer =
+		container_of(work, struct audmixer_priv, cp_notification_work);
+	enum modem_event event = audmixer->cp_event;
+
+	if ((event == MODEM_EVENT_EXIT ||
+		event == MODEM_EVENT_RESET || event == MODEM_EVENT_WATCHDOG)) {
+		/*
+		 * Get runtime PM, To keep the clocks enabled untill below
+		 * write executes.
+		 */
+#ifdef CONFIG_PM_RUNTIME
+		pm_runtime_get_sync(audmixer->dev);
+#endif
+		regmap_update_bits(audmixer->regmap, AUDMIXER_REG_10_DMIX1,
+						DMIX1_MIX_EN2_MASK, 0);
+
+#ifdef CONFIG_PM_RUNTIME
+		pm_runtime_put_sync(audmixer->dev);
+#endif
+		dev_dbg(g_audmixer->dev, "cp dmix path disabled\n");
+	}
+}
+
+static int audmixer_cp_notification_handler(struct notifier_block *nb,
+				unsigned long action, void *data)
+{
+
+	dev_dbg(g_audmixer->dev, "%s called, event = %ld\n", __func__,
+							action);
+
+	if (!is_cp_aud_enabled()) {
+		dev_dbg(g_audmixer->dev, "Mixer not active, Exiting..\n");
+		return 0;
+	}
+
+	g_audmixer->cp_event = action;
+	queue_work(g_audmixer->mixer_cp_wq, &g_audmixer->cp_notification_work);
+
+	return 0;
+}
+
+struct notifier_block audmixer_cp_nb = {
+		.notifier_call = audmixer_cp_notification_handler,
+};
+
+
 /**
  * TLV_DB_SCALE_ITEM
  *
@@ -2251,6 +2304,17 @@ static int audmixer_probe(struct snd_soc_codec *codec)
 	else
 #endif
 		post_update_fw(codec);
+
+	/* Initialize work queue for cp notification handling */
+	INIT_WORK(&g_audmixer->cp_notification_work, audmixer_cp_notification_work);
+
+	g_audmixer->mixer_cp_wq = create_singlethread_workqueue("mixer-cp-wq");
+	if (g_audmixer->mixer_cp_wq == NULL) {
+		dev_err(codec->dev, "Failed to create mixer-cp-wq\n");
+		return -ENOMEM;
+	}
+
+	register_modem_event_notifier(&audmixer_cp_nb);
 
 	/* Update the default value of registers that are accessible from
 	 * user-space, as the regcache needs to have a copy of those registers

@@ -5,6 +5,7 @@
 #include <linux/kernel.h>
 #include "dynamic_aid_s6e3fa3_a7max.h"
 
+#define EXTEND_BRIGHTNESS	365
 #define UI_MAX_BRIGHTNESS	255
 #define UI_MIN_BRIGHTNESS	0
 #define UI_DEFAULT_BRIGHTNESS	128
@@ -327,7 +328,7 @@ struct elvss_otp_info elvss_otp_data[IBRIGHTNESS_MAX] = {
 	[IBRIGHTNESS_014NIT] = {14,	{0x15, 0x15, 0x16}},
 };
 
-static unsigned char AOR_TABLE[IBRIGHTNESS_HBM_MAX/*UI_MAX_BRIGHTNESS + 1*/][AID_CMD_CNT] = {
+static unsigned char AOR_TABLE[IBRIGHTNESS_HBM_MAX][AID_CMD_CNT] = {
 	{0xB2, 0x70, 0x77},
 	{0xB2, 0x70, 0x68},
 	{0xB2, 0x70, 0x58},
@@ -406,7 +407,7 @@ static unsigned char AOR_TABLE[IBRIGHTNESS_HBM_MAX/*UI_MAX_BRIGHTNESS + 1*/][AID
 };
 
 /* platform brightness <-> gamma level */
-static unsigned int brightness_table[366	/* UI_MAX_BRIGHTNESS + 1 */] = {
+static unsigned int brightness_table[EXTEND_BRIGHTNESS + 1] = {
 	[0 ... 1] =		IBRIGHTNESS_002NIT,
 	[2 ... 2] =		IBRIGHTNESS_003NIT,
 	[3 ... 3] =		IBRIGHTNESS_004NIT,
@@ -487,18 +488,7 @@ static unsigned int brightness_table[366	/* UI_MAX_BRIGHTNESS + 1 */] = {
 	[324 ... 336] =		IBRIGHTNESS_533NIT,
 	[337 ... 350] =		IBRIGHTNESS_555NIT,
 	[351 ... 364] =		IBRIGHTNESS_578NIT,
-	[365 ... 365] =		IBRIGHTNESS_600NIT
-};
-
-static unsigned int hbm_auto_brightness_table[] = {
-	[0 ... 5] =	IBRIGHTNESS_420NIT,
-	[6] =		IBRIGHTNESS_465NIT,
-	[7] =		IBRIGHTNESS_488NIT,
-	[8] =		IBRIGHTNESS_510NIT,
-	[9] =		IBRIGHTNESS_533NIT,
-	[10] =		IBRIGHTNESS_555NIT,
-	[11] =		IBRIGHTNESS_578NIT,
-	[12] =		IBRIGHTNESS_600NIT
+	[EXTEND_BRIGHTNESS ... EXTEND_BRIGHTNESS] =		IBRIGHTNESS_600NIT
 };
 
 #endif /* __S6E3FA3_A7MAX_PARAM_H__ */

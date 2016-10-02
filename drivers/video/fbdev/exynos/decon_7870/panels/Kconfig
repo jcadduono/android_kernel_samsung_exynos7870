@@ -33,6 +33,10 @@ config PANEL_EA8061S_J7XE
 	depends on EXYNOS_DECON_LCD && EXYNOS_MIPI_DSI
 	tristate "EA8061S Amoled driver"
 
+config PANEL_S6E3AA2_AMS484KF09
+	depends on EXYNOS_DECON_LCD && EXYNOS_MIPI_DSI
+	tristate "S6E3AA2 Amoled driver"
+
 config PANEL_LTL101AL06
 	depends on EXYNOS_DECON_LCD && EXYNOS_MIPI_DSI
 	tristate "LTL101AL06 TFT HD driver(1280 x 800)"
@@ -41,9 +45,17 @@ config PANEL_S6D7AA0
 	depends on EXYNOS_DECON_LCD && EXYNOS_MIPI_DSI
 	tristate "S6D7AA0 TFT HD driver(800 x 1280)"
 
+config PANEL_S6D7AA0_BV055HDM
+	depends on EXYNOS_DECON_LCD && EXYNOS_MIPI_DSI
+	tristate "S6D7AA0_ON7E TFT HD driver(720 x 1280)"
+
 config PANEL_HX8279D
 	depends on EXYNOS_DECON_LCD && EXYNOS_MIPI_DSI
 	tristate "HX8279D TFT WUXGA driver(1200 x 1920)"
+
+config PANEL_TD4300
+	depends on EXYNOS_DECON_LCD && EXYNOS_MIPI_DSI
+	tristate "TD4300 TFT WUXGA driver(1080 x 1920)"
 
 config EXYNOS_LCD_PWM_BACKLIGHT
 	depends on EXYNOS_DECON_LCD && EXYNOS_MIPI_DSI

@@ -717,9 +717,9 @@ static s32 __extract_uni_name_from_name_entry(NAME_DENTRY_T *ep, u16 *uniname, s
  * -ENOENT : entry with the name does not exist
  * -EIO    : I/O error
  */
-static s32 exfat_find_dir_entry(struct super_block *sb, CHAIN_T *p_dir, UNI_NAME_T *p_uniname, s32 num_entries, DOS_NAME_T *unused, u32 type)
+static s32 exfat_find_dir_entry(struct super_block *sb, CHAIN_T *p_dir, HINT_T *hint_stat, UNI_NAME_T *p_uniname, s32 num_entries, DOS_NAME_T *unused, u32 type)
 {
-	s32 i, dentry = 0, num_ext_entries = 0, len;
+	s32 i, rewind = 0, dentry = 0, end_eidx = 0, num_ext_entries = 0, len;
 	s32 order = 0, is_feasible_entry = false;
 	s32 dentries_per_clu, num_empty = 0;
 	u32 entry_type;
@@ -730,7 +730,6 @@ static s32 exfat_find_dir_entry(struct super_block *sb, CHAIN_T *p_dir, UNI_NAME
 	STRM_DENTRY_T *strm_ep;
 	NAME_DENTRY_T *name_ep;
 	FS_INFO_T *fsi = &(SDFAT_SB(sb)->fsi);
-
 
 	/*
 	 * REMARK:
@@ -746,12 +745,22 @@ static s32 exfat_find_dir_entry(struct super_block *sb, CHAIN_T *p_dir, UNI_NAME
 	clu.size = p_dir->size;
 	clu.flags = p_dir->flags;
 
+	if (hint_stat->eidx) {
+		clu.dir = hint_stat->clu;
+		dentry = hint_stat->eidx;
+		end_eidx = dentry;
+	}
+
 	fsi->hint_uentry.dir = p_dir->dir;
 	fsi->hint_uentry.entry = -1;
 
+rewind:
 	while (!IS_CLUS_EOF(clu.dir)) {
+		i = dentry & (dentries_per_clu - 1);
+		for (; i < dentries_per_clu; i++, dentry++) {
+			if (rewind && (dentry == end_eidx))
+				goto not_found;
 
-		for (i = 0; i < dentries_per_clu; i++, dentry++) {
 			ep = get_dentry_in_dir(sb, &clu, i, NULL);
 			if (!ep)
 				return -EIO;
@@ -775,7 +784,7 @@ static s32 exfat_find_dir_entry(struct super_block *sb, CHAIN_T *p_dir, UNI_NAME
 				}
 
 				if (entry_type == TYPE_UNUSED) {
-					return -ENOENT;
+					goto not_found;
 				}
 			} else {
 				num_empty = 0;
@@ -817,7 +826,7 @@ static s32 exfat_find_dir_entry(struct super_block *sb, CHAIN_T *p_dir, UNI_NAME
 						} else if (order == num_ext_entries) {
 							fsi->hint_uentry.dir = CLUS_EOF;
 							fsi->hint_uentry.entry = -1;
-							return(dentry - (num_ext_entries));
+							goto found;
 						}
 
 						*(uniname+len) = unichar;
@@ -839,7 +848,46 @@ static s32 exfat_find_dir_entry(struct super_block *sb, CHAIN_T *p_dir, UNI_NAME
 		}
 	}
 
+not_found:
+	/* we started at not 0 index,so we should try to find target
+	 * from 0 index to the index we started at.
+	 */
+	if (!rewind && end_eidx) {
+		rewind = 1;
+		dentry = 0;
+		clu.dir = p_dir->dir;
+		goto rewind;
+	}
+
+	/* initialized hint_stat */
+	hint_stat->clu = p_dir->dir;
+	hint_stat->eidx = 0;
 	return -ENOENT;
+
+found:
+	/* next dentry we'll find is out of this cluster */
+	if (!((dentry + 1) & (dentries_per_clu-1))) {
+		int ret = 0;
+		if (clu.flags == 0x03) {
+			if ((--clu.size) > 0)
+				clu.dir++;
+			else
+				clu.dir = CLUS_EOF;
+		} else {
+			ret = get_next_clus_safe(sb, &clu.dir);
+		}
+
+		if (ret || IS_CLUS_EOF(clu.dir)) {
+			/* just initialized hint_stat */
+			hint_stat->clu = p_dir->dir;
+			hint_stat->eidx = 0;
+			return (dentry - num_ext_entries);
+		}
+	}
+
+	hint_stat->clu = clu.dir;
+	hint_stat->eidx = dentry + 1;
+	return (dentry - num_ext_entries);
 } /* end of exfat_find_dir_entry */
 
 /* returns -EIO on error */

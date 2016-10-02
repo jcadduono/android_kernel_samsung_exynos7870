@@ -56,6 +56,11 @@ static void print_block_data(unsigned long long blocknr, unsigned char *data_to_
 		, int start, int len);
 #endif
 
+ulong gTotalBlock = 0;
+ulong gMetaTotalBlock = 0;
+module_param_named(total, gTotalBlock, ulong, 0444);
+module_param_named(mtotal, gMetaTotalBlock, ulong, 0444);
+
 module_param_named(prefetch_cluster, dm_verity_prefetch_cluster, uint, S_IRUGO | S_IWUSR);
 
 struct dm_verity {
@@ -587,6 +592,9 @@ static int verity_map(struct dm_target *ti, struct bio *bio)
 {
 	struct dm_verity *v = ti->private;
 	struct dm_verity_io *io;
+	unsigned int meta = 0;
+	unsigned int test_blocks = 0;
+	
 #ifdef VERIFY_META_ONLY
 	if (!start_meta && bio->bi_bdev->bd_super) {
 		system_blks = ext4_system_zone_root(bio->bi_bdev->bd_super);
@@ -615,7 +623,12 @@ static int verity_map(struct dm_target *ti, struct bio *bio)
 		
 #ifdef VERIFY_META_ONLY
 	if (start_meta && !is_metablock(bio->bi_iter.bi_sector >> (v->data_dev_block_bits - SECTOR_SHIFT)))
+		{
+		meta = 0;
 		goto skip_verity;
+		} else {
+		meta = 1;
+	}
 #endif		
 
 	io = dm_per_bio_data(bio, ti->per_bio_data_size);
@@ -633,6 +646,11 @@ static int verity_map(struct dm_target *ti, struct bio *bio)
 #ifdef VERIFY_META_ONLY
 skip_verity:
 #endif
+  test_blocks = bio->bi_iter.bi_size >> v->data_dev_block_bits;
+	if (meta == 1) {
+		gMetaTotalBlock += test_blocks;
+	}
+	gTotalBlock += test_blocks;
 	generic_make_request(bio);
 
 	return DM_MAPIO_SUBMITTED;

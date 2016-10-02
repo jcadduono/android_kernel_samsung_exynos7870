@@ -49,12 +49,14 @@ struct synaptics_rmi_callbacks {
 struct synaptics_rmi4_platform_data {
 	bool x_flip;
 	bool y_flip;
+	bool x_y_chnage;
+	int x_offset;
 	unsigned int sensor_max_x;
 	unsigned int sensor_max_y;
 	unsigned int num_of_rx;
 	unsigned int num_of_tx;
 	unsigned char max_touch_width;
-	unsigned char panel_revision;	/* to identify panel info */
+	u32 panel_revision;	/* to identify panel info */
 	bool regulator_en;
 	unsigned gpio;
 	int irq_type;
@@ -63,11 +65,16 @@ struct synaptics_rmi4_platform_data {
 #ifdef NO_0D_WHILE_2D
 	int (*led_power_on) (bool);
 #endif
+	u32 ub_i2c_addr;
+	u32 reset_delay_ms;
+
 	unsigned char (*get_ddi_type)(void);	/* to indentify ddi type */
 	void (*enable_sync)(bool on);
 	const char *firmware_name;
+	const char *firmware_name_bl;
 	const char *project_name;
 	const char *model_name;
+	u32	device_num;
 #ifdef SYNAPTICS_RMI_INFORM_CHARGER
 	void (*register_cb)(struct synaptics_rmi_callbacks *);
 #endif
@@ -79,5 +86,14 @@ struct synaptics_rmi4_platform_data {
 };
 
 extern unsigned int lcdtype;
+
+#undef input_dbg
+#define input_dbg(mode, dev, fmt, ...)	dev_dbg(dev, fmt, ## __VA_ARGS__);
+
+#undef input_info
+#define input_info(mode, dev, fmt, ...)	dev_info(dev, fmt, ## __VA_ARGS__);
+
+#undef input_err
+#define input_err(mode, dev, fmt, ...)	dev_err(dev, fmt, ## __VA_ARGS__);
 
 #endif

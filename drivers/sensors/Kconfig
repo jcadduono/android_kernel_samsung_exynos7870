@@ -123,6 +123,13 @@ config SENSORS_TMD3782_PROX_ABS
 	help
 	   This option enables TMD3782 proximity sensor input report by ABS.
 
+config SENSORS_TMD3700
+	depends on I2C
+	tristate "TMD3700 driver"
+	default n
+	help
+	   This option enables proximity & light sensors using TMD3700 driver.
+
 config SENSORS_STK3013
 	depends on I2C
 	tristate "STK3013 driver"
@@ -365,3 +372,27 @@ config SENSORS_AK09916C
 	help
 	  If you say yes here you get support for Asahi Kasei's
 	  orientation sensor AK09916C.
+
+config SENSORS_YAS539
+	tristate "YAS539 Sensor Driver"
+	depends on I2C
+	default n
+	help
+	  If you say yes here you get support for YAMAHA
+	  YAS539 Geomagnitor Sensor.
+
+config SENSORS_YAS539_DEFAULT_MATRIX
+	depends on SENSORS_YAS539
+	tristate "The default conpensation matrix for YAS539 softiron"
+	default n
+	help
+	  This option is enables the default matrix for YAS539.
+
+config SENSORS_BHA250_DEFENCE_SW_RESET
+	tristate "SENSOR SW RESET support"
+	default n
+	depends on I2C
+	help
+	  If you say yes here you get support for SENSOR SW RESET.
+	  This supports avoiding from sensors malfunctioning
+	   in case that BHA works wrong.

@@ -206,6 +206,36 @@ config ARCH_EXYNOS7
 	help
 	  Samsung EXYNOS7 (A57/A53) SoC based systems
 
+config SOC_EXYNOS8890
+	bool "Samsung EXYNOS8890"
+	select ARCH_EXYNOS
+	select ARCH_HAS_CPUFREQ
+	select HAVE_S3C2410_I2C if I2C
+	select HAVE_S3C2410_WATCHDOG if WATCHDOG
+	select HAVE_S3C_RTC if RTC_CLASS
+	select ARCH_SUPPORTS_MSI
+	select ARM_AMBA
+	select CLKSRC_OF
+	select USE_OF
+	select COMMON_CLK_SAMSUNG
+	select CLKSRC_EXYNOS_MCT
+	select PINCTRL
+	select PWRCAL
+	select PM_GENERIC_DOMAINS if PM
+	select SOC_SAMSUNG
+	select SAMSUNG_DMADEV
+
+config SOC_EXYNOS8890_EVT1
+	default n
+	bool "Samsung EXYNOS8890 evt1"
+
+config ARCH_EXYNOS8
+	bool "SAMSUNG EXYNOS8"
+	select HAVE_ARM_SCU if SMP
+	select HAVE_SMP
+	help
+	  Samsung EXYNOS8 (Mongoose/A53) SoC based systems
+
 config PWRCAL
     bool "Exynos Power Chip Abstraction Layer"
     help

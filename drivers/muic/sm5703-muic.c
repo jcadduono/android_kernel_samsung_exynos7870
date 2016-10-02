@@ -438,6 +438,8 @@ static ssize_t sm5703_muic_show_attached_dev(struct device *dev,
 		return sprintf(buf, "CDP\n");
 	case ATTACHED_DEV_OTG_MUIC:
 		return sprintf(buf, "OTG\n");
+	case ATTACHED_DEV_RDU_TA_MUIC:
+		return sprintf(buf, "LDU_RDU TA\n");
 	case ATTACHED_DEV_TA_MUIC:
 		return sprintf(buf, "TA\n");
 	case ATTACHED_DEV_JIG_UART_OFF_MUIC:
@@ -1236,6 +1238,7 @@ static void sm5703_muic_handle_attach(struct sm5703_muic_data *muic_data,
 		}
 		break;
 
+	case ATTACHED_DEV_RDU_TA_MUIC:
 	case ATTACHED_DEV_TA_MUIC:
 		muic_data->attached_dev = ATTACHED_DEV_NONE_MUIC;
 		break;
@@ -1299,6 +1302,7 @@ static void sm5703_muic_handle_attach(struct sm5703_muic_data *muic_data,
 	case ATTACHED_DEV_AUDIODOCK_MUIC:
 		ret = attach_audiodock(muic_data, new_dev, vbvolt);
 		break;
+	case ATTACHED_DEV_RDU_TA_MUIC:
 	case ATTACHED_DEV_TA_MUIC:
 		com_to_open_with_vbus(muic_data);
 		mdelay(150);
@@ -1363,6 +1367,7 @@ static void sm5703_muic_handle_detach(struct sm5703_muic_data *muic_data)
 	case ATTACHED_DEV_USB_LANHUB_MUIC:
 		ret = detach_otg_usb(muic_data);
 		break;
+	case ATTACHED_DEV_RDU_TA_MUIC:
 	case ATTACHED_DEV_TA_MUIC:
 		muic_data->attached_dev = ATTACHED_DEV_NONE_MUIC;
 		break;
@@ -1592,6 +1597,13 @@ static void sm5703_muic_detect_dev(struct sm5703_muic_data *muic_data)
 //			new_dev = ATTACHED_DEV_CHARGING_CABLE_MUIC;
 //			pr_info("%s : PS_CABLE DETECTED\n", MUIC_DEV_NAME);
 			new_dev = ATTACHED_DEV_UNDEFINED_RANGE_MUIC;
+			break;
+		case ADC_RDU_TA:
+			if (vbvolt) {
+				intr = MUIC_INTR_ATTACH;
+				new_dev = ATTACHED_DEV_RDU_TA_MUIC;
+				pr_info("%s : LDU/RDU TA DETECTED\n", MUIC_DEV_NAME);
+			}
 			break;
 		case ADC_OPEN:
 			/* sometimes muic fails to catch JIG_UART_OFF detaching */

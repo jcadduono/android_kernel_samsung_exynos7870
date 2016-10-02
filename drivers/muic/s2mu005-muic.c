@@ -745,6 +745,30 @@ static int com_to_usb(struct s2mu005_muic_data *muic_data)
 	return ret;
 }
 
+#if defined(CONFIG_MUIC_S2MU005_ENABLE_AUTOSW)
+static int com_to_open_jigen(struct s2mu005_muic_data *muic_data)
+{
+	enum s2mu005_reg_manual_sw_value reg_val;
+	int ret = 0;
+	struct i2c_client *i2c = muic_data->i2c;
+
+	ret = set_ctrl_reg(muic_data, CTRL_MANUAL_SW_SHIFT, false);
+	if (ret < 0)
+		pr_err( "%s:%s: fail to update reg\n", MUIC_DEV_NAME, __func__);
+	
+	reg_val = (MANSW_OPEN | MANUAL_SW_JIG_EN);
+
+	ret = s2mu005_i2c_write_byte(i2c, S2MU005_REG_MUIC_SW_CTRL, reg_val);
+	if (ret < 0)
+		pr_err("%s:%s: err write MANSW\n", MUIC_DEV_NAME, __func__);
+
+	ret = s2mu005_i2c_read_byte(i2c, S2MU005_REG_MUIC_SW_CTRL);
+	pr_info("%s:%s: MUIC_SW_CTRL=0x%x\n ", MUIC_DEV_NAME, __func__, ret);
+
+	return ret;
+}
+#endif /* CONFIG_MUIC_S2MU005_ENABLE_AUTOSW */
+
 static int com_to_uart(struct s2mu005_muic_data *muic_data)
 {
 	enum s2mu005_reg_manual_sw_value reg_val;
@@ -753,8 +777,14 @@ static int com_to_uart(struct s2mu005_muic_data *muic_data)
 	pr_info("%s:%s: rustproof mode[%d]\n", MUIC_DEV_NAME, __func__, muic_data->is_rustproof);
 
 	if (muic_data->is_rustproof)
+	{
+#if defined(CONFIG_MUIC_S2MU005_ENABLE_AUTOSW)
+		ret = com_to_open_jigen(muic_data);
+		if (ret)
+			pr_err("%s:%s: manual open set err\n", MUIC_DEV_NAME, __func__);
+#endif /* CONFIG_MUIC_S2MU005_ENABLE_AUTOSW */
 		return ret;
-
+	}
 	reg_val = MANSW_UART;
 	ret = set_com_sw(muic_data, reg_val);
 	if (ret)

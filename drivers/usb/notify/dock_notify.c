@@ -7,6 +7,8 @@
  * (at your option) any later version.
  */
 
+ /* usb notify layer v2.0 */
+
 #define pr_fmt(fmt) "usb_notify: " fmt
 
 #include <linux/module.h>
@@ -81,6 +83,36 @@ static int check_essential_device(struct usb_device *dev, int index)
 			break;
 		}
 	}
+	return ret;
+}
+
+static int check_gamepad_device(struct usb_device *dev)
+{
+	int ret = 0;
+
+	pr_info("%s : product=%s\n", __func__, dev->product);
+
+	if (!dev->product)
+		return ret;
+
+	if (!strnicmp(dev->product , "Gamepad for SAMSUNG", 19))
+		ret = 1;
+
+	return ret;
+}
+
+static int check_lanhub_device(struct usb_device *dev)
+{
+	int ret = 0;
+
+	pr_info("%s : product=%s\n", __func__, dev->product);
+
+	if (!dev->product)
+		return ret;
+
+	if (!strnicmp(dev->product , "LAN9512", 8))
+		ret = 1;
+
 	return ret;
 }
 
@@ -185,6 +217,28 @@ skip:
 	return 0;
 }
 
+static int call_device_notify(struct usb_device *dev)
+{
+	struct otg_notify *o_notify = get_otg_notify();
+
+	if (dev->bus->root_hub != dev) {
+		pr_info("%s device\n", __func__);
+		send_otg_notify(o_notify, NOTIFY_EVENT_DEVICE_CONNECT, 1);
+
+		if (check_gamepad_device(dev))
+			send_otg_notify(o_notify,
+				NOTIFY_EVENT_GAMEPAD_CONNECT, 1);
+		else if (check_lanhub_device(dev))
+			send_otg_notify(o_notify,
+				NOTIFY_EVENT_LANHUB_CONNECT, 1);
+		else
+			;
+	} else
+		pr_info("%s root hub\n", __func__);
+
+	return 0;
+}
+
 static int update_hub_autosuspend_timer(struct usb_device *dev)
 {
 	struct usb_device *hdev;
@@ -214,6 +268,7 @@ static int dev_notify(struct notifier_block *self,
 {
 	switch (action) {
 	case USB_DEVICE_ADD:
+		call_device_notify(dev);
 		call_battery_notify(dev, 1);
 		update_hub_autosuspend_timer(dev);
 		break;

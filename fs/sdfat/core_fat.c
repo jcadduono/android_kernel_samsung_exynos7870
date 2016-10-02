@@ -608,9 +608,9 @@ static inline s32 __get_dentries_per_clu(FS_INFO_T *fsi, s32 clu)
 	return fsi->dentries_per_clu;
 }
 
-static s32 fat_find_dir_entry(struct super_block *sb, CHAIN_T *p_dir, UNI_NAME_T *p_uniname, s32 num_entries, DOS_NAME_T *p_dosname, u32 type)
+static s32 fat_find_dir_entry(struct super_block *sb, CHAIN_T *p_dir, HINT_T *hint_stat, UNI_NAME_T *p_uniname, s32 num_entries, DOS_NAME_T *p_dosname, u32 type)
 {
-	s32 i, dentry = 0;
+	s32 i, rewind = 0, dentry = 0, end_eidx = 0;
 	s32 chksum = 0, lfn_ord = 0, lfn_len = 0;
 	s32 dentries_per_clu;
 	u32 entry_type;
@@ -628,9 +628,20 @@ static s32 fat_find_dir_entry(struct super_block *sb, CHAIN_T *p_dir, UNI_NAME_T
 	clu.dir = p_dir->dir;
 	clu.flags = p_dir->flags;
 
+	if (hint_stat->eidx) {
+		clu.dir = hint_stat->clu;
+		dentry = hint_stat->eidx;
+		end_eidx = dentry;
+	}
+
 	MMSG("lookup dir= %s\n", p_dosname->name);
+rewind:
 	while (!IS_CLUS_EOF(clu.dir)) {
-		for (i = 0; i < dentries_per_clu; i++, dentry++) {
+		i = dentry % dentries_per_clu;
+		for (; i < dentries_per_clu; i++, dentry++) {
+			if (rewind && (dentry == end_eidx))
+				goto not_found;
+
 			ep = get_dentry_in_dir(sb, &clu, i, NULL);
 			if (!ep)
 				return -EIO;
@@ -742,18 +753,18 @@ static s32 fat_find_dir_entry(struct super_block *sb, CHAIN_T *p_dir, UNI_NAME_T
 						!nls_cmp_sfn(sb,
 							p_dosname->name,
 							dos_ep->name) ) {
-						return dentry;
+						goto found;
 					}
 				/* check name length */
 				} else if ( (lfn_len > 0) &&
 						((s32)p_uniname->name_len ==
 						 lfn_len) ) {
-					return dentry;
+					goto found;
 				}
 
 				/* DO HANDLE MISMATCHED SFN, FALL THROUGH */
 			} else if (entry_type == TYPE_UNUSED) {
-				return -ENOENT;
+				goto not_found;
 			}
 
 reset_dentry_set:
@@ -771,7 +782,43 @@ reset_dentry_set:
 			return -EIO;
 	}
 
+not_found:
+	/* we started at not 0 index,so we should try to find target
+	 * from 0 index to the index we started at.
+	 */
+	if (!rewind && end_eidx) {
+		rewind = 1;
+		dentry = 0;
+		clu.dir = p_dir->dir;
+		goto rewind;
+	}
+
+	/* initialized hint_stat */
+	hint_stat->clu = p_dir->dir;
+	hint_stat->eidx = 0;
 	return -ENOENT;
+
+found:
+	/* next dentry we'll find is out of this cluster */
+	if (!((dentry + 1) % dentries_per_clu)) {
+		int ret = 0;
+		/* FAT16 root_dir */
+		if (IS_CLUS_FREE(p_dir->dir))
+			clu.dir = CLUS_EOF;
+		else
+			ret = get_next_clus_safe(sb, &clu.dir);
+
+		if (ret || IS_CLUS_EOF(clu.dir)) {
+			/* just initialized hint_stat */
+			hint_stat->clu = p_dir->dir;
+			hint_stat->eidx = 0;
+			return dentry;
+		}
+	}
+
+	hint_stat->clu = clu.dir;
+	hint_stat->eidx = dentry + 1;
+	return dentry;
 } /* end of fat_find_dir_entry */
 
 /* returns -EIO on error */

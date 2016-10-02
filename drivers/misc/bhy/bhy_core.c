@@ -64,6 +64,7 @@ static int axis_matrix[8][9] = {
 };
 
 static int check_watchdog_reset(struct bhy_client_data *client_data);
+void report_last_step_counter_data(struct bhy_client_data *client_data);
 
 static void int_debug(struct bhy_client_data *client_data,
 	char *log, const char *func, int line)
@@ -1441,7 +1442,7 @@ static int mcu_monitor_thread(void *arg)
 			/* Reset by MCU Watchdog. */
 			if (check_watchdog_reset(client_data)) {
 				client_data->cnt_no_response++;
-				PINFO("MCU Mlafunction Detected. %d/3", client_data->cnt_no_response);
+				PINFO("MCU Malfunction Detected. %d/3", client_data->cnt_no_response);
 			}
 
 			if (!client_data->skip_reset && (client_data->cnt_no_response > 0)) {
@@ -1579,12 +1580,17 @@ void process_step(struct bhy_client_data *client_data, u8 *data)
 				step_diff = 1;
 			}
 		}
-
 	/* logging mode */
 	} else {
 		step_diff += new_data.walk_count;
 		step_diff += new_data.run_count;
 		last_step += step_diff;
+		client_data->late_step_report = true;
+
+		if (client_data->start_index > 0 &&
+			client_data->current_index == 1) {
+			client_data->late_step_report = false;
+		}
 	}
 
 	if (client_data->step_cnt_enabled)
@@ -1603,6 +1609,9 @@ void process_data(struct bhy_client_data *client_data, u8 *data, u16 handle)
 	static int acc_count;
 	int i;
 	unsigned int tmp_idx = 0;
+#if defined(CONFIG_SENSORS_BHI_BMP280)
+	unsigned int tmp_press = 0;
+#endif
 
 	switch (handle) {
 	case BHY_SENSOR_HANDLE_ACCELEROMETER:
@@ -1633,13 +1642,27 @@ void process_data(struct bhy_client_data *client_data, u8 *data, u16 handle)
 		break;
 
 	case AR_SENSOR:
-		PINFO("ar: %d", data[0]);
+		PINFO("AR : %d", data[0]);
 		break;
+#if defined(CONFIG_SENSORS_BHI_BMP280)
+	case BHY_SENSOR_HANDLE_PRESSURE:		
+		tmp_press |= (u32) (data[2]);
+		tmp_press = tmp_press << 8;
+		tmp_press |= (u32) (data[1]);
+		tmp_press = tmp_press << 8;
+		tmp_press |= (u32) (data[0]); 
+		tmp_press = tmp_press;
 
+		tmp_press += (client_data->pressure_cal * 12800);
+		data[0] = tmp_press & 0xFF;
+		data[1] = (tmp_press >> 8) & 0xFF;
+		data[2] = (tmp_press >> 16) & 0xFF;
+		break;
+#endif
 	case PEDOMETER_SENSOR:
 		memcpy(&new_data, data, sizeof(new_data));
 		if (new_data.data_index > MAX_LOGGING_SIZE) {
-			PINFO("PEDO: Wrong data = %u", new_data.data_index);
+			PINFO("PEDO: Dummy data = %u", new_data.data_index);
 		} else {
 			PINFO("PEDO: %u, %d, %d, %u, %lld, %lld",
 				new_data.data_index, new_data.walk_count,
@@ -1698,9 +1721,11 @@ step_cnt:
 	if (client_data->step_cnt_enabled) {
 		if (client_data->last_step_count == client_data->step_count)
 			return;
+		if (client_data->late_step_report == true)
+			return;
 
 		q->frames[q->head].handle = BHY_SENSOR_HANDLE_STEP_COUNTER;
-		memcpy(q->frames[q->head].data,	&client_data->step_count,
+		memcpy(q->frames[q->head].data, &client_data->step_count,
 				BHY_SENSOR_DATA_LEN_STEP_COUNTER);
 
 		if (q->head == BHY_FRAME_SIZE - 1)
@@ -1716,6 +1741,32 @@ step_cnt:
 				++q->tail;
 		}
 
+		client_data->last_step_count = client_data->step_count;
+	}
+}
+
+void report_last_step_counter_data(
+	struct bhy_client_data *client_data)
+{
+	struct frame_queue *q = &client_data->data_queue;
+	if (client_data->step_cnt_enabled) {
+		PINFO("STEP: last step cnt = %d", client_data->step_count);
+		q->frames[q->head].handle = BHY_SENSOR_HANDLE_STEP_COUNTER;
+		memcpy(q->frames[q->head].data, &client_data->step_count,
+			BHY_SENSOR_DATA_LEN_STEP_COUNTER);
+
+		if (q->head == BHY_FRAME_SIZE - 1)
+			q->head = 0;
+		else
+			++q->head;
+		if (q->head == q->tail) {
+			frame_debug("One frame data lost",
+				__func__, __LINE__);
+			if (q->tail == BHY_FRAME_SIZE - 1)
+				q->tail = 0;
+			else
+				++q->tail;
+		}
 		client_data->last_step_count = client_data->step_count;
 	}
 }
@@ -1979,6 +2030,14 @@ static void bhy_read_fifo_data(struct bhy_client_data *client_data)
 			__func__, __LINE__);
 		return;
 	}
+
+	/* Over sized FIFO detected */
+	if (bytes_remain > BHY_FIFO_LEN_MAX) {
+		mutex_unlock(&client_data->mutex_bus_op);
+		PDEBUG("Over sized FIFO detected");
+		return;
+	}
+
 	ret = bhy_read_reg(client_data, BHY_REG_FIFO_BUFFER_0,
 			client_data->fifo_buf, bytes_remain);
 	if (ret < 0) {
@@ -2537,6 +2596,7 @@ static ssize_t bhy_store_sensor_conf(struct device *dev
 			return ret;
 
 		client_data->step_cnt_enabled = buf[0] | buf[1];
+		report_last_step_counter_data(client_data);
 	} else if (client_data->sensor_sel == BHY_SENSOR_HANDLE_TILT_DETECTOR) {
 		client_data->tilt_enabled = buf[0] | buf[1];
 	} else if (client_data->sensor_sel
@@ -2547,6 +2607,14 @@ static ssize_t bhy_store_sensor_conf(struct device *dev
 		client_data->smd_enabled = buf[0] | buf[1];
 	} else if (client_data->sensor_sel == AR_SENSOR) {
 		client_data->ar_enabled = buf[0] | buf[1];
+#if defined(CONFIG_SENSORS_BHI_BMP280)
+	} else if (client_data->sensor_sel == BHY_SENSOR_HANDLE_PRESSURE) {
+		client_data->pressure_enabled = buf[0] | buf[1];
+		client_data->pressure_delay = buf[1] << 8 | buf[0];
+		if (client_data->pressure_enabled) {
+			pressure_open_calibration(client_data);
+		}
+#endif
 	}
 
 	/** Monitor Thread **/
@@ -6678,6 +6746,15 @@ static void sync_sensor(struct bhy_client_data *client_data)
 		if (ret < 0)
 			PERR("re-enable ar sensor error");
 	}
+
+#if defined(CONFIG_SENSORS_BHI_BMP280)
+	if (client_data->pressure_enabled) {
+		PINFO("re-enable pressure sensor");
+		ret = enable_sensor(client_data,
+				BHY_SENSOR_HANDLE_PRESSURE,
+				1, client_data->pressure_delay);
+	}
+#endif
 }
 
 static ssize_t shealth_enable_store(struct device *dev,
@@ -7269,12 +7346,18 @@ int init_sysfs(struct bhy_client_data *client_data)
 {
 	sensors_register(client_data->acc_device, client_data,
 				acc_attrs, ACC_NAME);
+#if defined(CONFIG_SENSORS_BHI_BMP280)
+	initialize_pressure_factorytest(client_data);
+#endif
 	return 0;
 }
 
 void remove_sysfs(struct bhy_client_data *client_data)
 {
 	sensors_unregister(client_data->acc_device, acc_attrs);
+#if defined(CONFIG_SENSORS_BHI_BMP280)
+	remove_pressure_factorytest(client_data);
+#endif
 }
 
 static void bhy_clear_up(struct bhy_client_data *client_data)
@@ -7518,6 +7601,7 @@ int bhy_probe(struct bhy_data_bus *data_bus)
 #endif /*~ BHY_AR_HAL_SUPPORT */
 
 	bhy_init_sensor_type_data_len(client_data);
+	client_data->late_step_report = false;
 
 	wake_lock_init(&client_data->wlock, WAKE_LOCK_SUSPEND, "bhy");
 
@@ -7536,6 +7620,12 @@ int bhy_probe(struct bhy_data_bus *data_bus)
 	}
 
 	parse_dt(data_bus->dev, client_data);
+
+	/** Initialize variables. **/
+#if defined(CONFIG_SENSORS_BHI_BMP280)
+	client_data->pressure_cal = 0;
+	client_data->pressure_sealevel = 0;
+#endif
 
 	/** Monitor Thread **/
 	init_waitqueue_head(&client_data->monitor_wq);

@@ -51,6 +51,7 @@ config CAMERA_CIS_2P2_OBJ
 		default n
 		help
 		  Use to build 2P2 camera sensor.
+
 config CAMERA_CIS_2P8_OBJ
 		bool "Use 2P8 camera cis"
 	depends on USE_DIRECT_IS_CONTROL
@@ -74,6 +75,7 @@ config CAMERA_CIS_3L2_OBJ
 		default n
 		help
 		  Use to build 3L2 camera sensor.
+
 config CAMERA_CIS_SR544_OBJ
 	bool "Use SR544 camera cis"
 	depends on USE_DIRECT_IS_CONTROL
@@ -81,6 +83,7 @@ config CAMERA_CIS_SR544_OBJ
 		default n
 		help
 	Use to build SR544 camera sensor.
+
 config CAMERA_CIS_SR259_OBJ
 	bool "Use SR259 camera cis"
 	depends on USE_DIRECT_IS_CONTROL
@@ -88,3 +91,11 @@ config CAMERA_CIS_SR259_OBJ
 		default n
 		help
 	Use to build SR259 camera sensor.
+
+config CAMERA_CIS_IMX258_OBJ
+		bool "Use IMX258 camera cis"
+	depends on USE_DIRECT_IS_CONTROL
+	depends on CAMERA_CIS_SELECT
+		default n
+		help
+		  Use to build IMX258 camera sensor.

@@ -1703,13 +1703,11 @@ static void gpiodvs_check_init_gpio(struct samsung_pinctrl_drv_data *drvdata,
 	pin_to_reg_bank(drvdata, pin - drvdata->ctrl->base,
 					&reg_base, &pin_offset, &bank);
 
-#if 0
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 	if (!strncmp(bank->name, CONFIG_SENSORS_FP_SPI_GPIO, 4)) {
 		init_gpio_idx++;
 		goto out;
 	}
-#endif
 #endif
 #ifdef CONFIG_ESE_SECURE
 	if (!strncmp(bank->name, CONFIG_ESE_SECURE_GPIO, 4)) {

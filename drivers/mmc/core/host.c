@@ -451,6 +451,8 @@ int mmc_of_parse(struct mmc_host *host)
 		host->caps2 |= MMC_CAP2_HS400_1_2V | MMC_CAP2_HS200_1_2V_SDR;
 	if (of_find_property(np, "supports-hs400-enhanced-strobe", NULL))
 		host->caps2 |= MMC_CAP2_STROBE_ENHANCED;
+	if (of_find_property(np, "skip-init-mmc-scan", NULL))
+		host->caps2 |= MMC_CAP2_SKIP_INIT_SCAN;
 
 	host->dsr_req = !of_property_read_u32(np, "dsr", &host->dsr);
 	if (host->dsr_req && (host->dsr & ~0xffff)) {

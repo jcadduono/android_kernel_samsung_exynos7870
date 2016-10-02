@@ -223,6 +223,7 @@ static struct device_attribute power_supply_attrs[] = {
 	POWER_SUPPLY_ATTR(afc_charger_mode),
 	POWER_SUPPLY_ATTR(usb_hc),
 	POWER_SUPPLY_ATTR(model_name),
+	POWER_SUPPLY_ATTR(inbat_voltage_fgsrc_switchg),
 };
 
 static struct attribute *

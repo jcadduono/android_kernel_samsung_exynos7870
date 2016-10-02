@@ -58,7 +58,12 @@
 
 #define FTS_SUPPORT_PARTIAL_DOWNLOAD
 
+#ifdef CONFIG_FTS_SUPPROT_MULTIMEDIA
+#define FTS_SUPPROT_MULTIMEDIA
+#else
 #undef FTS_SUPPROT_MULTIMEDIA
+#endif
+
 #undef TSP_RUN_AUTOTUNE_DEFAULT
 
 
@@ -542,6 +547,7 @@ void fts_interrupt_set(struct fts_ts_info *info, int enable);
 int fts_irq_enable(struct fts_ts_info *info, bool enable);
 #ifdef FTS_SUPPORT_PARTIAL_DOWNLOAD
 bool get_PureAutotune_status(struct fts_ts_info *info);
+bool get_AFE_status(struct fts_ts_info *info);
 #endif
 
 #endif				//_LINUX_FTS_TS_H_

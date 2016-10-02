@@ -587,6 +587,9 @@ static int parse_dt_iodevs_pdata(struct device *dev, struct device_node *np,
 			mif_dt_read_enum(child, "iod,tx_link", iod->tx_link);
 		mif_dt_read_u32(child, "iod,attrs", iod->attrs);
 		/* mif_dt_read_string(child, "iod,app", iod->app); */
+		mif_dt_read_u32_noerr(child, "iod,max_tx_size", 
+				iod->ul_buffer_size);
+
 		if (iod->attrs & IODEV_ATTR(ATTR_SBD_IPC)) {
 			mif_dt_read_u32(child, "iod,ul_num_buffers",
 					iod->ul_num_buffers);

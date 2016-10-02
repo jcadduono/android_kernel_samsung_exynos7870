@@ -335,7 +335,7 @@ int ecryptfs_initialize_file(struct dentry *ecryptfs_dentry,
 			struct timespec ts;
 			crypt_stat->flags |= ECRYPTFS_DLP_ENABLED;
 			getnstimeofday(&ts);
-			crypt_stat->expiry.expiry_time.tv_sec = (int64_t)ts.tv_sec + 600;
+			crypt_stat->expiry.expiry_time.tv_sec = (int64_t)ts.tv_sec + 20;
 			crypt_stat->expiry.expiry_time.tv_nsec = (int64_t)ts.tv_nsec;
 #if DLP_DEBUG
 			printk(KERN_ERR "DLP %s: current->pid : %d\n", __func__, current->tgid);
@@ -627,18 +627,52 @@ static struct dentry *ecryptfs_lookup(struct inode *ecryptfs_dir_inode,
 #ifdef CONFIG_SDP
 	if(!strncmp(lower_dir_dentry->d_sb->s_type->name, "sdcardfs", 8)) {
 		struct sdcardfs_dentry_info *dinfo = SDCARDFS_D(lower_dir_dentry);
-		int len = strlen(ecryptfs_dentry->d_name.name);
-		int i, numeric = 1;
+		struct dentry *parent = dget_parent(lower_dir_dentry);
+		struct sdcardfs_dentry_info *parent_info = SDCARDFS_D(parent);
 
 		dinfo->under_knox = 1;
 		dinfo->userid = -1;
+
 		if(IS_UNDER_ROOT(ecryptfs_dentry)) {
-			for(i=0 ; i < len ; i++)
-				if(!isdigit(ecryptfs_dentry->d_name.name[i])) { numeric = 0; break; }
-			if(numeric) {
-				dinfo->userid = simple_strtoul(ecryptfs_dentry->d_name.name, NULL, 10);
+			parent_info->permission = PERMISSION_PRE_ROOT;
+			if(mount_crypt_stat->userid >= 100 && mount_crypt_stat->userid <= 200) {
+				parent_info->userid = mount_crypt_stat->userid;
+
+				/* Assume masked off by default. */
+				if (!strcasecmp(ecryptfs_dentry->d_name.name, "Android")) {
+					/* App-specific directories inside; let anyone traverse */
+					dinfo->permission = PERMISSION_ROOT;
+				}	
+			}
+			else {
+				int len = strlen(ecryptfs_dentry->d_name.name);
+				int i, numeric = 1;
+
+				for(i=0 ; i < len ; i++)
+					if(!isdigit(ecryptfs_dentry->d_name.name[i])) { numeric = 0; break; }
+				if(numeric) {
+					dinfo->userid = simple_strtoul(ecryptfs_dentry->d_name.name, NULL, 10);
+				}
+			} 
+		}
+		else {
+			struct sdcardfs_sb_info *sbi = SDCARDFS_SB(lower_dir_dentry->d_sb);
+			
+			/* Derive custom permissions based on parent and current node */
+			switch (parent_info->permission) {
+				case PERMISSION_ROOT:
+					if (!strcasecmp(ecryptfs_dentry->d_name.name, "data") || !strcasecmp(ecryptfs_dentry->d_name.name, "obb") || !strcasecmp(ecryptfs_dentry->d_name.name, "media")) {
+						/* App-specific directories inside; let anyone traverse */
+						dinfo->permission = PERMISSION_ANDROID;
+					} 
+					break;
+               			case PERMISSION_ANDROID:
+					dinfo->permission = PERMISSION_UNDER_ANDROID;
+               				dinfo->appid = get_appid(sbi->pkgl_id, ecryptfs_dentry->d_name.name);
+					break;
 			}
 		}
+		dput(parent);
 	}
 #endif
 	lower_dentry = lookup_one_len(encrypted_and_encoded_name,
@@ -1491,7 +1525,7 @@ ecryptfs_getxattr(struct dentry *dentry, const char *name, void *value,
 			if (crypt_stat->expiry.expiry_time.tv_sec <= 0) {
 				struct timespec ts;
 				getnstimeofday(&ts);
-				crypt_stat->expiry.expiry_time.tv_sec = (int64_t)ts.tv_sec + 600;
+				crypt_stat->expiry.expiry_time.tv_sec = (int64_t)ts.tv_sec + 20;
 				crypt_stat->expiry.expiry_time.tv_nsec = (int64_t)ts.tv_nsec;
 #if DLP_DEBUG
 				printk(KERN_ERR "DLP %s: use temp expiry\n", __func__);

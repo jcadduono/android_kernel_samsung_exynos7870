@@ -2409,13 +2409,15 @@ int mmc_detect_card_removed(struct mmc_host *host)
 	 * The card will be considered unchanged unless we have been asked to
 	 * detect a change or host requires polling to provide card detection.
 	 */
-	if (!host->detect_change && !(host->caps & MMC_CAP_NEEDS_POLL))
+	if (!host->detect_change && !(host->caps & MMC_CAP_NEEDS_POLL) &&
+		!(host->caps2 & MMC_CAP2_DETECT_ON_ERR))
 		return ret;
 
 	host->detect_change = 0;
 	if (!ret) {
 		ret = _mmc_detect_card_removed(host);
-		if (ret && (host->caps & MMC_CAP_NEEDS_POLL)) {
+		if (ret && ((host->caps & MMC_CAP_NEEDS_POLL) ||
+			(host->caps2 & MMC_CAP2_DETECT_ON_ERR))) {
 			/*
 			 * Schedule a detect work as soon as possible to let a
 			 * rescan handle the card removal.
@@ -2517,13 +2519,19 @@ void mmc_start_host(struct mmc_host *host)
 #if defined(CONFIG_QCOM_WIFI) || defined(CONFIG_BCM4343)  || defined(CONFIG_BCM4343_MODULE) || defined(CONFIG_BCM43454)  || defined(CONFIG_BCM43454_MODULE)  
 	if (!strcmp("mmc1", mmc_hostname(host))) {
 		printk("%s skip mmc_detect_change\n", mmc_hostname(host));
+	} else if (host->caps2 & MMC_CAP2_SKIP_INIT_SCAN) {
+		printk("%s skip mmc detect change\n", mmc_hostname(host));
 	} else {
 		mmc_gpiod_request_cd_irq(host);
 		_mmc_detect_change(host, 0, false);
 	}
 #else
-	mmc_gpiod_request_cd_irq(host);
-	_mmc_detect_change(host, 0, false);
+	if (host->caps2 & MMC_CAP2_SKIP_INIT_SCAN) {
+		printk("%s skip mmc detect change\n", mmc_hostname(host));
+	} else {
+		mmc_gpiod_request_cd_irq(host);
+		_mmc_detect_change(host, 0, false);
+	}
 #endif /* CONFIG_QCOM_WIFI || CONFIG_BCM4343 || CONFIG_BCM4343_MODULE */
 }
 

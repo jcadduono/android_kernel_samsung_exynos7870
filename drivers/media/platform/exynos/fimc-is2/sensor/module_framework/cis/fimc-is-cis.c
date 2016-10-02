@@ -82,7 +82,9 @@ int sensor_cis_set_registers(struct v4l2_subdev *subdev, const u32 *regs, const 
 	msleep(3);
 
 	for (i = 0; i < size; i += I2C_WRITE) {
-		if (regs[i + I2C_BYTE] == I2C_WRITE_ADDR8_DATA8) {
+		if (regs[i + I2C_ADDR] == 0xFFFF) {
+			msleep(regs[i + I2C_BYTE]);
+		} else if (regs[i + I2C_BYTE] == I2C_WRITE_ADDR8_DATA8) {
 			ret = fimc_is_sensor_addr8_write8(client, regs[i + I2C_ADDR], regs[i + I2C_DATA]);
 			if (ret < 0) {
 				err("fimc_is_sensor_addr8_write8 fail, ret(%d), addr(%#x), data(%#x)",

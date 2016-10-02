@@ -92,7 +92,7 @@ static int sdfat_get_block(struct inode *inode, sector_t iblock,
 
 static struct inode *sdfat_iget(struct super_block *sb, loff_t i_pos);
 static int sdfat_sync_inode(struct inode *inode);
-static struct inode *sdfat_build_inode(struct super_block *sb, FILE_ID_T *fid, loff_t i_pos);
+static struct inode *sdfat_build_inode(struct super_block *sb, const FILE_ID_T *fid, loff_t i_pos);
 static void sdfat_detach(struct inode *inode);
 static void sdfat_attach(struct inode *inode, loff_t i_pos);
 static inline unsigned long sdfat_hash(loff_t i_pos);
@@ -3559,7 +3559,7 @@ static void sdfat_detach(struct inode *inode)
 
 
 /* doesn't deal with root inode */
-static int sdfat_fill_inode(struct inode *inode, FILE_ID_T *fid)
+static int sdfat_fill_inode(struct inode *inode, const FILE_ID_T *fid)
 {
 	struct sdfat_sb_info *sbi = SDFAT_SB(inode->i_sb);
 	FS_INFO_T *fsi = &(sbi->fsi);
@@ -3632,7 +3632,7 @@ static int sdfat_fill_inode(struct inode *inode, FILE_ID_T *fid)
 }
 
 static struct inode *sdfat_build_inode(struct super_block *sb,
-					   FILE_ID_T *fid, loff_t i_pos) {
+				   const FILE_ID_T *fid, loff_t i_pos) {
 	struct inode *inode;
 	int err;
 
@@ -4453,7 +4453,10 @@ static int sdfat_read_root(struct inode *inode)
 	SDFAT_I(inode)->fid.flags = 0x01;
 	SDFAT_I(inode)->fid.type = TYPE_DIR;
 	SDFAT_I(inode)->fid.rwoffset = 0;
-	SDFAT_I(inode)->fid.hint_last_off = -1;
+	SDFAT_I(inode)->fid.hint_bmap.off = -1;
+
+	SDFAT_I(inode)->fid.hint_stat.eidx = 0;
+	SDFAT_I(inode)->fid.hint_stat.clu = fsi->root_dir;
 
 	SDFAT_I(inode)->target = NULL;
 

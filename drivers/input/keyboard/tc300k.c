@@ -1141,7 +1141,7 @@ static int tc300k_fw_update(struct tc300k_data *data, u8 fw_path, bool force)
 			return -1;
 
 		data->fw_ver_bin = data->fw_img->first_fw_ver;
-		if (!force && (data->fw_ver >= data->fw_ver_bin)) {
+		if (!force && (data->fw_ver == data->fw_ver_bin)) {
 			dev_notice(&client->dev, "[TK] do not need firm update (IC:0x%x, BIN:0x%x)\n",
 				data->fw_ver, data->fw_ver_bin);
 			t300k_release_fw(data, fw_path);

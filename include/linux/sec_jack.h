@@ -39,8 +39,8 @@ struct sec_jack_buttons_zone {
 
 struct sec_jack_control_data {
 	int snd_card_registered;
-	int (*set_micbias) (bool);
-	int (*get_adc) (void);
+	int (*set_micbias)(bool);
+	int (*get_adc)(void);
 };
 
 struct sec_jack_platform_data {
@@ -56,10 +56,11 @@ struct sec_jack_platform_data {
 	struct sec_jack_control_data *jack_controls;
 };
 
-extern struct sec_jack_control_data jack_controls;
-
 typedef void (*sec_jack_button_notify_cb)(int code, int event);
 int sec_jack_register_button_notify_cb(sec_jack_button_notify_cb func);
+int sec_jack_set_snd_card_registered(int snd_card_registered);
+int sec_jack_register_set_micbias_cb(int (*set_micbias) (bool));
+int sec_jack_register_get_adc_cb(int (*get_adc) (void));
 
 #endif
 

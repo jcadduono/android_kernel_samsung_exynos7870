@@ -169,7 +169,7 @@ static int mmc_bus_resume(struct device *dev)
 	struct mmc_host *host = card->host;
 	int ret = 0;
 
-	if (host->bus_ops && host->bus_ops->suspend) {
+	if (host->bus_ops && host->bus_ops->resume) {
 		ret = host->bus_ops->resume(host);
 	}
 	if (ret)

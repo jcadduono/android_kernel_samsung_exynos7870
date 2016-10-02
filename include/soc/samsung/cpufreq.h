@@ -150,7 +150,11 @@ typedef enum {
 } cluster_type;
 extern int exynos_cpufreq_regulator_register_notifier(cluster_type cluster);
 
+#if defined(CONFIG_SOC_EXYNOS7870)
+#define COLD_VOLT_OFFSET	25000
+#else
 #define COLD_VOLT_OFFSET	37500
+#endif
 #define LIMIT_COLD_VOLTAGE	1350000
 #define MIN_COLD_VOLTAGE	950000
 #define NR_CLUST0_CPUS		4

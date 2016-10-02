@@ -3,10 +3,16 @@
 #include <linux/types.h>
 #include <linux/kernel.h>
 
-#define UI_MAX_BRIGHTNESS	365
+#define UI_MAX_BRIGHTNESS	255
 #define UI_MIN_BRIGHTNESS	0
 #define UI_DEFAULT_BRIGHTNESS	128
 #define NORMAL_TEMPERATURE	25	/* 25 degrees Celsius */
+
+struct lcd_seq_info {
+	unsigned char	*cmd;
+	unsigned int	len;
+	unsigned int	sleep;
+};
 
 static const unsigned char SEQ_PASSWD1[] = {
 	0xF0,
@@ -67,17 +73,6 @@ static const unsigned char SEQ_BACKLIGHT_CTL[] = {
 	0x53,
 	0x2C, 0x00
 };
-#if 0
-static unsigned char SEQ_BRIGHTNESS_SELECT[] = {
-	0x51,
-	0x51, 0x00
-};
-
-static unsigned char SEQ_BRIGHTNESS_OFF[] = {
-	0x51,
-	0x00, 0x00
-};
-#endif
 
 static const unsigned char SEQ_PORCH_CTL[] = {
 	0xF2,
@@ -86,12 +81,12 @@ static const unsigned char SEQ_PORCH_CTL[] = {
 
 static const unsigned char SEQ_BL_ON_CTL[] = {
 	0xC3,
-	0x3B, 0x00, 0x2A
+	0x5B, 0x00, 0x2A	// PMIC_ON, PWM 22.08 kHz
 };
 
 static const unsigned char SEQ_BL_OFF_CTL[] = {
 	0xC3,
-	0x3B, 0x00, 0x20
+	0x5B, 0x00, 0x20
 };
 
 static const unsigned char SEQ_TEON_CTL[] = {

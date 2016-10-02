@@ -224,6 +224,11 @@ void mms_input_event_handler(struct mms_ts_info *info, u8 sz, u8 *buf)
 			input_report_abs(info->input_dev, ABS_MT_TOUCH_MAJOR, touch_major);
 			input_report_abs(info->input_dev, ABS_MT_TOUCH_MINOR, touch_minor);
 			input_report_abs(info->input_dev, ABS_MT_PALM, palm);
+#if defined(MELFAS_GHOST_TOUCH_AUTO_DETECT)
+			info->cur_data[id].x = x;
+			info->cur_data[id].y = y;
+			info->cur_data[id].z = pressure;
+#endif
 
 			if (info->finger_state[id] == 0){
 				info->finger_state[id] = 1;

@@ -839,6 +839,7 @@ static int sm5705_chg_set_property(struct power_supply *psy,
 		charger->cable_type = val->intval;
 		charger->input_current = charger->pdata->charging_current
 				[charger->cable_type].input_current_limit;
+		sm5705_set_operation_mode(charger);
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_MAX:
 		pr_info("POWER_SUPPLY_PROP_CURRENT_MAX - current=%d\n", val->intval);
@@ -905,7 +906,6 @@ static int sm5705_chg_set_property(struct power_supply *psy,
 			charger->is_charging = true;
 			break;
 		}
-		sm5705_set_operation_mode(charger);
 		sm5705_enable_charging_on_switch(charger, charger->is_charging);
 		break;
 	case POWER_SUPPLY_PROP_ENERGY_NOW:

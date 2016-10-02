@@ -426,14 +426,14 @@ int sm5705_fled_prepare_flash(unsigned char index)
 	if (sm5705_charger_oper_get_current_op_mode() == SM5705_CHARGER_OP_MODE_CHG_ON) {
 		/* W/A : for protect form VBUS drop */
 		sm5705_charger_oper_push_event(SM5705_CHARGER_OP_EVENT_FLASH, 1);
-		if(!sm5705_fled_check_valid_vbus_from_MUIC()) {
+		if (!sm5705_fled_check_valid_vbus_from_MUIC()) {
 			pr_err("%s: Can't used FLED, because of failed AFC V_drop\n", __func__);
 			sm5705_charger_oper_push_event(SM5705_CHARGER_OP_EVENT_FLASH, 0);
 			return -1;
 		}
 		sm5705_charger_oper_push_event(SM5705_CHARGER_OP_EVENT_FLASH, 0);
 	} else {
-		if(!sm5705_fled_check_valid_vbus_from_MUIC()) {
+		if (!sm5705_fled_check_valid_vbus_from_MUIC()) {
 			pr_err("%s: Can't used FLED, because of failed AFC V_drop\n", __func__);
 			return -1;
 		}
@@ -442,7 +442,7 @@ int sm5705_fled_prepare_flash(unsigned char index)
 #endif
 
 	sm5705_FLEDx_set_torch_current(g_sm5705_fled, index,
-		g_sm5705_fled->pdata->led[index].torch_current_mA);
+		g_sm5705_fled->pdata->led[index].preflash_current_mA);
 	sm5705_FLEDx_set_flash_current(g_sm5705_fled, index,
 		g_sm5705_fled->pdata->led[index].flash_current_mA);
 
@@ -455,34 +455,47 @@ int sm5705_fled_prepare_flash(unsigned char index)
 }
 EXPORT_SYMBOL(sm5705_fled_prepare_flash);
 
-int sm5705_fled_torch_on(unsigned char index)
+int sm5705_fled_torch_on(unsigned char index, unsigned char mode)
 {
-	dev_info(g_sm5705_fled->dev, "%s: Torch - ON : E\n", __func__);
+	dev_info(g_sm5705_fled->dev, "%s: %s - ON : E\n", __func__,
+		mode == SM5705_FLED_PREFLASH ? "Pre-flash" : "Movie");
+
+	if (mode == SM5705_FLED_PREFLASH) {
+		dev_info(g_sm5705_fled->dev, "%s: set preflash_current_mA(%d mA)\n",
+			__func__, g_sm5705_fled->pdata->led[index].preflash_current_mA);
+		sm5705_FLEDx_set_torch_current(g_sm5705_fled, index,
+			g_sm5705_fled->pdata->led[index].preflash_current_mA);
+	} else {
+		dev_info(g_sm5705_fled->dev, "%s: set movie_current_mA(%d mA)\n",
+			__func__, g_sm5705_fled->pdata->led[index].movie_current_mA);
+		sm5705_FLEDx_set_torch_current(g_sm5705_fled, index,
+			g_sm5705_fled->pdata->led[index].movie_current_mA);
+	}
 
 	if (fimc_is_activated != 1) {
 #if defined(CONFIG_MUIC_UNIVERSAL_SM5705_AFC)
 #ifdef IGNORE_AFC_STATE
 		sm5705_fled_muic_flash_work_on(g_sm5705_fled);
 #else
-		if(!sm5705_fled_check_valid_vbus_from_MUIC()) {
+		if (!sm5705_fled_check_valid_vbus_from_MUIC()) {
 			pr_err("%s: Can't used FLED, because of failed AFC V_drop\n", __func__);
 			return -1;
 		}
 #endif
 #endif
-		sm5705_FLEDx_set_torch_current(g_sm5705_fled, index,
-			g_sm5705_fled->pdata->led[index].torch_current_mA);
 		sm5705_FLEDx_set_flash_current(g_sm5705_fled, index,
 			g_sm5705_fled->pdata->led[index].flash_current_mA);
 
 		sm5705_FLEDx_mode_enable(g_sm5705_fled, index, SM5705_FLED_ON_EXTERNAL_CONTROL_MODE);
 		fimc_is_activated = 1;
 	}
+
 	sm5705_fled_lock(g_sm5705_fled);
 	sm5705_charger_oper_push_event(SM5705_CHARGER_OP_EVENT_FLASH, 0);
 	sm5705_charger_oper_push_event(SM5705_CHARGER_OP_EVENT_TORCH, 1);
 	sm5705_fled_unlock(g_sm5705_fled);
-	dev_info(g_sm5705_fled->dev, "%s: Torch - ON : X\n", __func__);
+	dev_info(g_sm5705_fled->dev, "%s: %s - ON : X\n", __func__,
+		mode == SM5705_FLED_PREFLASH ? "Pre-flash" : "Movie");
 	return 0;
 }
 EXPORT_SYMBOL(sm5705_fled_torch_on);
@@ -576,13 +589,15 @@ static ssize_t sm5705_rear_flash_store(struct device *dev,
 		break;
 	case 1:
 		/* Turn on Torch */
-		ret = sm5705_fled_turn_on_torch(sm5705_fled, REAR_FLASH_INDEX, 60);
+		ret = sm5705_fled_turn_on_torch(sm5705_fled, REAR_FLASH_INDEX,
+			g_sm5705_fled->pdata->led[REAR_FLASH_INDEX].torch_current_mA);
 		assistive_light = true;
 		fimc_is_activated = 0;
 		break;
 	case 100:
 		/* Factory mode Turn on Torch */
-		ret = sm5705_fled_turn_on_torch(sm5705_fled, REAR_FLASH_INDEX, 320);
+		ret = sm5705_fled_turn_on_torch(sm5705_fled, REAR_FLASH_INDEX,
+			g_sm5705_fled->pdata->led[REAR_FLASH_INDEX].factory_current_mA);
 		break;
 	default:
 		if (value_u32 > 1000 && value_u32 < (1000 + 32)) {
@@ -647,19 +662,46 @@ static int sm5705_fled_parse_dt(struct device *dev,
 		}
 		index = temp;
 
+		ret = of_property_read_u32(c_np, "pre-flash-current-mA", &temp);
+		if (ret) {
+			temp = 150;
+			dev_err(dev, "%s: fail to get dt, ret(%d): set default pre-flash-current-mA(%d mA)\n",
+				__func__, ret, temp);
+
+		}
+		pdata->led[index].preflash_current_mA = temp;
+
 		ret = of_property_read_u32(c_np, "flash-mode-current-mA", &temp);
 		if (ret) {
-			dev_err(dev, "%s: fail to get dt:flash-mode-current-mA\n", __func__);
-			return ret;
+			temp = 1000;
+			dev_err(dev, "%s: fail to get dt, ret(%d): set default flash-mode-current-mA(%d mA)\n",
+				__func__, ret, temp);
 		}
 		pdata->led[index].flash_current_mA = temp;
 
+		ret = of_property_read_u32(c_np, "movie-mode-current-mA", &temp);
+		if (ret) {
+			temp = 150;
+			dev_err(dev, "%s: fail to get dt, ret(%d): set default movie-mode-current-mA(%d mA)\n",
+				__func__, ret, temp);
+		}
+		pdata->led[index].movie_current_mA = temp;
+
 		ret = of_property_read_u32(c_np, "torch-mode-current-mA", &temp);
 		if (ret) {
-			dev_err(dev, "%s: fail to get dt:torch-mode-current-mA\n", __func__);
-			return ret;
+			temp = 60;
+			dev_err(dev, "%s: fail to get dt, ret(%d): set default torch-mode-current-mA(%d mA)\n",
+				__func__, ret, temp);
 		}
 		pdata->led[index].torch_current_mA = temp;
+
+		ret = of_property_read_u32(c_np, "factory-mode-current-mA", &temp);
+		if (ret) {
+			temp = 320;
+			dev_err(dev, "%s: fail to get dt, ret(%d): set default factory-mode-current-mA(%d mA)\n",
+				__func__, ret, temp);
+		}
+		pdata->led[index].factory_current_mA = temp;
 
 		ret = of_property_read_u32(c_np, "used-gpio-control", &temp);
 		if (ret) {
@@ -718,9 +760,11 @@ static inline struct sm5705_fled_platform_data *_get_sm5705_fled_platform_data(
 
 	dev_info(dev, "sm5705 flash-LED device platform data info, \n");
 	for (i=0; i < SM5705_FLED_MAX; ++i) {
-		dev_info(dev, "[FLED-%d] Flash: %dmA, Torch: %dmA, used_gpio=%d, \
-			GPIO_PIN(%d, %d)\n", i, pdata->led[i].flash_current_mA,
-			pdata->led[i].torch_current_mA, pdata->led[i].used_gpio,
+		dev_info(dev, "[FLED-%d] PreFlash: %dmA, Flash: %dmA, Movie: %dmA, \
+			Torch: %dmA, Factory: %dmA, used_gpio=%d, GPIO_PIN(%d, %d)\n", i,
+			pdata->led[i].preflash_current_mA, pdata->led[i].flash_current_mA,
+			pdata->led[i].movie_current_mA, pdata->led[i].torch_current_mA,
+			pdata->led[i].factory_current_mA, pdata->led[i].used_gpio,
 			pdata->led[i].flash_en_pin, pdata->led[i].torch_en_pin);
 	}
 

@@ -1003,7 +1003,7 @@ extern int sm5703_led_mode_ctrl(int state);
 int fimc_is_vender_set_torch(u32 aeflashMode)
 {
 	switch (aeflashMode) {
-	case AA_FLASHMODE_ON_ALWAYS: /*TORCH mode*/
+	case AA_FLASHMODE_ON_ALWAYS: /*TORCH(MOVIE) mode*/
 #ifdef CONFIG_LEDS_LM3560
 		lm3560_reg_update_export(0xE0, 0xFF, 0xEF);
 #elif defined(CONFIG_LEDS_SKY81296)
@@ -1011,7 +1011,7 @@ int fimc_is_vender_set_torch(u32 aeflashMode)
 #elif defined(CONFIG_TORCH_CURRENT_CHANGE_SUPPORT) && defined(CONFIG_LEDS_S2MPB02)
 		s2mpb02_set_torch_current(true);
 #elif defined(CONFIG_LEDS_SM5705)
-		sm5705_fled_torch_on(SM5705_FLED_0);
+		sm5705_fled_torch_on(SM5705_FLED_0, SM5705_FLED_MOVIE);
 #elif defined(CONFIG_LEDS_S2MU005_FLASH) && defined(CONFIG_LEDS_SUPPORT_FRONT_FLASH)
 		s2mu005_led_mode_ctrl(S2MU005_FLED_MODE_MOVIE);
 #elif defined(CONFIG_FLED_SM5703)
@@ -1030,7 +1030,7 @@ int fimc_is_vender_set_torch(u32 aeflashMode)
 #elif defined(CONFIG_TORCH_CURRENT_CHANGE_SUPPORT) && defined(CONFIG_LEDS_S2MPB02)
 		s2mpb02_set_torch_current(false);
 #elif defined(CONFIG_LEDS_SM5705)
-		sm5705_fled_torch_on(SM5705_FLED_0);
+		sm5705_fled_torch_on(SM5705_FLED_0, SM5705_FLED_PREFLASH);
 #elif defined(CONFIG_FLED_SM5703)
 		sm5703_led_mode_ctrl(1);
 		if (flash_control_ready == false) {

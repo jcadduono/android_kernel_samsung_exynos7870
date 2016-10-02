@@ -23,11 +23,14 @@ enum SCENARIO {
 	BROWSER_MODE,
 	EBOOK_MODE,
 	EMAIL_MODE,
+	GAME_LOW_MODE,
+	GAME_MID_MODE,
+	GAME_HIGH_MODE,
 	HMT_8_MODE,
 	HMT_16_MODE,
 	SCENARIO_MAX,
 	DMB_NORMAL_MODE = 20,
-	DMB_MODE_MAX,
+	DMB_MODE_MAX
 };
 
 enum BYPASS {
@@ -49,8 +52,7 @@ enum ACCESSIBILITY {
 enum HBM {
 	HBM_OFF,
 	HBM_ON,
-	HBM_ON_TEXT,
-	HBM_MAX,
+	HBM_MAX
 };
 
 enum hmt_mode {
@@ -60,7 +62,7 @@ enum hmt_mode {
 	HMT_4000K,
 	HMT_6400K,
 	HMT_7500K,
-	HMT_MDNIE_MAX,
+	HMT_MDNIE_MAX
 };
 
 struct mdnie_seq_info {
@@ -93,6 +95,9 @@ struct mdnie_tune {
 
 	struct mdnie_scr_info	*scr_info;
 	unsigned char **coordinate_table;
+	unsigned char **adjust_ldu_table;
+	unsigned int max_adjust_ldu;
+	int (*get_hbm_index)(int);
 	int (*color_offset[])(int, int);
 };
 
@@ -106,9 +111,6 @@ typedef int (*mdnie_r)(void *devdata, u8 addr, u8 *buf, u32 len);
 
 
 struct mdnie_info {
-	struct clk		*bus_clk;
-	struct clk		*clk;
-
 	struct device		*dev;
 	struct mutex		dev_lock;
 	struct mutex		lock;
@@ -126,7 +128,6 @@ struct mdnie_info {
 	unsigned int		tuning;
 	unsigned int		accessibility;
 	unsigned int		color_correction;
-	unsigned int		auto_brightness;
 
 	char			path[50];
 
@@ -146,7 +147,7 @@ struct mdnie_info {
 
 extern int mdnie_calibration(int *r);
 extern int mdnie_open_file(const char *path, char **fp);
-extern int mdnie_register(struct device *p, void *data, mdnie_w w, mdnie_r r, u16 *coordinate, struct mdnie_tune *tune);
+extern int mdnie_register(struct device *p, void *data, mdnie_w w, mdnie_r r, unsigned int *coordinate, struct mdnie_tune *tune);
 extern uintptr_t mdnie_request_table(char *path, struct mdnie_table *s);
 extern ssize_t attr_store_for_each(struct class *cls, const char *name, const char *buf, size_t size);
 extern struct class *get_mdnie_class(void);

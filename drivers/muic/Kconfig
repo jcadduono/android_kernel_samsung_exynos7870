@@ -231,6 +231,14 @@ config MUIC_UNIVERSAL_SM5705_AFC
 	  If you say yes here you will get support for the SM5705 MUIC
 	  AFC feature.
 
+config MUIC_UNIVERSAL_SM5705_AFC_QC20
+	bool "SM5705 MUIC AFC QC20"
+	depends on USE_MUIC
+	default n
+	help
+	  If you say yes here you will get support for the SM5705 MUIC QC20
+	  AFC feature.
+
 config MUIC_UNIVERSAL_SM5504
 	bool "SM5504 MUIC"
 	depends on USE_MUIC

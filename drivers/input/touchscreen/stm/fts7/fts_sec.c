@@ -10,6 +10,8 @@
 #define BUFFER_MAX					(256 * 1024) - 16
 #define READ_CHUNK_SIZE				128 // (2 * 1024) - 16
 
+#include "fts_ts.h"
+
 enum {
 	TYPE_RAW_DATA = 0,
 	TYPE_FILTERED_DATA = 2,
@@ -2057,7 +2059,7 @@ static void fts_read_ix_data(struct fts_ts_info *info, bool allnode)
 				else
 					TEMP_COMP = 25;
 				sense_ix_data[i] = rx_ix1 + rx_ix2[i + DOFFSET] - TEMP_COMP;
-			}else if((strncmp(info->board->project_name, "gtaxl", 5) == 0)) {
+			}else if((strncmp(info->board->model_name, "T580", 4) == 0)) {
 				int TEMP_COMP = 0;
 				if (i == 0 )
 					TEMP_COMP = 20;
@@ -2904,7 +2906,7 @@ static void run_cx_data_read(void *device_data)
 					else
 						TEMP_COMP = 0;
 					info->cx_data[(j * rx_num) + i] = ReadData[j][i + DOFFSET] - TEMP_COMP;
-				} else if((strncmp(info->board->project_name, "gtaxl", 5) == 0)) {
+				}else if((strncmp(info->board->model_name, "T580", 4) == 0)) {
 					int TEMP_COMP = 0;
 					if ( j ==26 )
 						TEMP_COMP = 2;
@@ -5179,6 +5181,10 @@ static void run_force_calibration(void *device_data)
 	struct fts_ts_info *info = (struct fts_ts_info *)device_data;
 	char buff[CMD_STR_LEN] = { 0 };
 	bool touch_on = false;
+	int ret = 0;
+	unsigned char regData[4];
+	bool bFinalAFE = false;
+	bFinalAFE = get_AFE_status(info);
 
 	set_default_result(info);
 
@@ -5231,8 +5237,59 @@ static void run_force_calibration(void *device_data)
 		if (touch_on) {
 			tsp_debug_info(true, info->dev, "%s: finger! do not run autotune\n", __func__);
 		} else {
+#if !defined (CONFIG_SEC_FACTORY)
+			tsp_debug_info(true, info->dev, "%s: Delete PAT flag\n", __func__);
+			tsp_debug_info(true, info->dev, "%s: AFE_status(%d) write ( C2 0E )\n", __func__,bFinalAFE);
+			regData[0] = 0xC2;
+			regData[1] = 0x0E;
+			ret = info->fts_write_reg(info, regData, 2);//Write C2 0E
+			if (ret < 0)
+				tsp_debug_info(true, info->dev, "%s: Flash Back up PureAutotune Fail(Clear)\n", __func__);
+			msleep(20);
+			if(info->stm_format_ver != STM_FORMAT_VER6)
+				fts_fw_wait_for_event(info, STATUS_EVENT_PURE_AUTOTUNE_FLAG_ERASE_FINISH);
+			msleep(20);
+			info->fts_command(info, FTS_CMD_SAVE_CX_TUNING);
+			msleep(230);
+			fts_fw_wait_for_event(info, STATUS_EVENT_FLASH_WRITE_CXTUNE_VALUE);
+			/* Reset FTS */
+			fts_systemreset(info);
+			msleep(20);
+			/* wait for ready event */
+			fts_wait_for_ready(info);
+#endif
+
 			tsp_debug_info(true, info->dev, "%s: run autotune\n", __func__);
 			fts_execute_autotune(info);
+
+			tsp_debug_info(true, info->dev, "%s: AFE_status(%d) write ( C1 0E )\n", __func__,bFinalAFE);
+
+			if(bFinalAFE){
+				regData[0] = 0xC1;
+				regData[1] = 0x0E;
+				ret = info->fts_write_reg(info, regData, 2);//write C1 0E
+				if (ret < 0)
+					tsp_debug_info(true, info->dev, "%s: Flash Back up PureAutotune Fail(Set)\n", __func__);
+
+				msleep(20);
+				if(info->stm_format_ver != STM_FORMAT_VER6)
+					fts_fw_wait_for_event(info, STATUS_EVENT_PURE_AUTOTUNE_FLAG_WRITE_FINISH); 
+			}
+			msleep(20);
+			info->fts_command(info, FTS_CMD_SAVE_CX_TUNING);
+			msleep(230);
+			fts_fw_wait_for_event(info, STATUS_EVENT_FLASH_WRITE_CXTUNE_VALUE);
+			/* Reset FTS */
+			fts_systemreset(info);
+			msleep(20);
+			/* wait for ready event */
+			fts_wait_for_ready(info);
+
+			ret = get_PureAutotune_status(info);
+			if(!ret) {
+				tsp_debug_info(true, info->dev, "%s : PAT flag is not set(error)\n", __func__);
+			}
+			tsp_debug_info(true, info->dev, "%s : PAT(%d)\n", __func__,ret);
 		}
 
 		if (info->stm_format_ver != STM_FORMAT_VER6)

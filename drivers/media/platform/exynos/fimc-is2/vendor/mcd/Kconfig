@@ -130,3 +130,21 @@ config CAMERA_A7MAX
         default n
         help
           This camera is a7max project.
+config CAMERA_ON7E
+        bool "This camera is on7e project"
+        depends on VENDER_MCD
+        default n
+        help
+          This camera is on7e project.
+config CAMERA_ON7X
+        bool "This camera is on7x project"
+        depends on VENDER_MCD
+        default n
+        help
+          This camera is on7x project.
+config CAMERA_A3XPREMIUM
+        bool "This camera is a3xpremium project"
+        depends on VENDER_MCD
+        default n
+        help
+          This camera is a3xpremium project.

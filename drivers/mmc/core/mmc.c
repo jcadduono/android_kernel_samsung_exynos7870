@@ -627,7 +627,8 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 	if (card->ext_csd.rev >= 6) {
 		card->ext_csd.feature_support |= MMC_DISCARD_FEATURE;
 
-		card->ext_csd.generic_cmd6_time = 10 *
+		/* set generic cmd6 timeout unit as 20ms */
+		card->ext_csd.generic_cmd6_time = 20 *
 			ext_csd[EXT_CSD_GENERIC_CMD6_TIME];
 		card->ext_csd.power_off_longtime = 10 *
 			ext_csd[EXT_CSD_POWER_OFF_LONG_TIME];
@@ -1944,9 +1945,24 @@ static int mmc_shutdown(struct mmc_host *host)
 static int mmc_resume(struct mmc_host *host)
 {
 	int err = 0;
+	u32 status;
 
-	if (host->pm_caps & MMC_PM_SKIP_MMC_RESUME_INIT)
-		return 0;
+	if (host->pm_caps & MMC_PM_SKIP_MMC_RESUME_INIT) {
+		mmc_claim_host(host);
+		err = mmc_send_status(host->card, &status);
+		mmc_release_host(host);
+
+		if (!err && (R1_CURRENT_STATE(status) == R1_STATE_TRAN)) {
+			return 0;
+		} else {
+			pr_err("%s: status : 0x%x, err : %d doing resume\n",
+					   mmc_hostname(host), status, err);
+			mmc_power_off(host);
+			mmc_card_set_suspended(host->card);	
+			err = _mmc_resume(host);
+			return err;
+		}
+	}
 
 	if (!(host->caps & MMC_CAP_RUNTIME_RESUME)) {
 		err = _mmc_resume(host);

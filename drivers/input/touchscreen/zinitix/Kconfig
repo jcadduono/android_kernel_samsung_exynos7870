@@ -17,3 +17,11 @@ config TOUCHSCREEN_ZINITIX_BT532
 	help
 	  Say Y here if you have a ZINITIX ZT75XX touchscreen.
 	  If unsure, say N.
+
+  config TOUCHSCREEN_ZINITIX_ZT75XX_O7
+	bool "ZINITIX ZT75XX touchscreen driver for On7 turkey model"
+	depends on TOUCHSCREEN_ZINITIX_ZT75XX
+	default n
+	help
+	  Say Y here if you have a ZINITIX ZT75XX touchscreen.
+	  If unsure, say N.

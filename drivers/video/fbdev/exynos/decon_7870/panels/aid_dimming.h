@@ -21,6 +21,17 @@
 #error "ERROR !! Check LCD Panel Header File"
 #endif
 
+#define	DIMMING_METHOD_AID		0
+#define DIMMING_METHOD_FILL_CENTER	1
+#define DIMMING_METHOD_INTERPOLATION	2
+#define DIMMING_METHOD_FILL_HBM		3
+#define DIMMING_METHOD_MAX		4
+
+#define W1	DIMMING_METHOD_AID
+#define W2	DIMMING_METHOD_FILL_CENTER
+#define W3	DIMMING_METHOD_INTERPOLATION
+#define W4	DIMMING_METHOD_FILL_HBM
+
 enum {
 	CI_RED = 0,
 	CI_GREEN,
@@ -45,6 +56,7 @@ struct SmtDimInfo {
 	unsigned char *elv;
 	unsigned char *m_gray;
 	unsigned char gamma[OLED_CMD_GAMMA_CNT];
+	unsigned int way;
 };
 
 #endif

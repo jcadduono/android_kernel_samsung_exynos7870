@@ -72,6 +72,8 @@
 #define DENTRY_SIZE		32	/* directory entry size */
 #define DENTRY_SIZE_BITS	5
 
+#define MAX_FAT_DENTRIES	65536   /* FAT allows 65536 directory entries */
+
 /* PBR entries */
 #define PBR_SIGNATURE	0xAA55
 #define EXT_SIGNATURE	0xAA550000

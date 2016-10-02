@@ -315,68 +315,16 @@ err_exit:
 }
 
 
-int dsim_write_hl_data(struct dsim_device *dsim, const u8 *cmd, u32 cmdSize)
-{
-	int ret;
-	int retry;
-	struct panel_private *panel = &dsim->priv;
-
-	if (panel->lcdConnected == PANEL_DISCONNEDTED)
-		return cmdSize;
-
-	//mutex_lock(&dsim->rdwr_lock);
-	retry = 5;
-
-try_write:
-	if (cmdSize == 1)
-		ret = dsim_write_data(dsim, MIPI_DSI_DCS_SHORT_WRITE, cmd[0], 0);
-	else if (cmdSize == 2)
-		ret = dsim_write_data(dsim, MIPI_DSI_DCS_SHORT_WRITE_PARAM, cmd[0], cmd[1]);
-	else
-		ret = dsim_write_data(dsim, MIPI_DSI_DCS_LONG_WRITE, (unsigned long)cmd, cmdSize);
-
-	if (ret != 0) {
-		if (--retry)
-			goto try_write;
-		else
-			dsim_err("dsim write failed,  cmd : %x\n", cmd[0]);
-	}
-	//mutex_unlock(&dsim->rdwr_lock);
-	return ret;
-}
-
-int dsim_read_hl_data(struct dsim_device *dsim, u8 addr, u32 size, u8 *buf)
-{
-	int ret;
-	int retry = 4;
-	struct panel_private *panel = &dsim->priv;
-
-	if (panel->lcdConnected == PANEL_DISCONNEDTED)
-		return size;
-
-try_read:
-	ret = dsim_read_data(dsim, MIPI_DSI_DCS_READ, (u32)addr, size, buf);
-	dsim_info("%s read ret : %d\n", __func__, ret);
-	if (ret != size) {
-		if (--retry)
-			goto try_read;
-		else
-			dsim_err("dsim read failed,  addr : %x\n", addr);
-	}
-
-	return ret;
-}
-
 #ifdef CONFIG_FB_WINDOW_UPDATE
 static int dsim_partial_area_command(struct dsim_device *dsim, void *arg)
 {
-	struct panel_private *panel = &dsim->priv;
+	struct panel_private *priv = &dsim->priv;
 	struct decon_win_rect *win_rect = (struct decon_win_rect *)arg;
 	char data_2a[5];
 	char data_2b[5];
 	int retry;
 
-	if (panel->lcdConnected == PANEL_DISCONNEDTED)
+	if (priv->lcdConnected == PANEL_DISCONNEDTED)
 		return 0;
 
 	/* w is right & h is bottom */

@@ -17,33 +17,28 @@
 extern unsigned int lcdtype;
 #if defined(CONFIG_PANEL_EA8064G_DYNAMIC)
 extern struct mipi_dsim_lcd_driver ea8064g_mipi_lcd_driver;
-extern struct dsim_panel_ops ea8064g_panel_ops;
 #elif defined(CONFIG_PANEL_S6E3FA3_J7XE)
 extern struct mipi_dsim_lcd_driver s6e3fa3_mipi_lcd_driver;
-extern struct dsim_panel_ops s6e3fa3_panel_ops;
 #elif defined(CONFIG_PANEL_S6E3FA3_A7MAX)
 extern struct mipi_dsim_lcd_driver s6e3fa3_mipi_lcd_driver;
-extern struct dsim_panel_ops s6e3fa3_panel_ops;
 #elif defined(CONFIG_PANEL_EA8061S_J7XE)
 extern struct mipi_dsim_lcd_driver ea8061_mipi_lcd_driver;
-extern struct dsim_panel_ops ea8061_panel_ops;
 extern struct mipi_dsim_lcd_driver ea8061s_mipi_lcd_driver;
-extern struct dsim_panel_ops ea8061s_panel_ops;
+#elif defined(CONFIG_PANEL_S6E3AA2_AMS484KF09)
+extern struct mipi_dsim_lcd_driver s6e3aa2_mipi_lcd_driver;
 #elif defined(CONFIG_PANEL_LTL101AL06)
 extern struct mipi_dsim_lcd_driver ltl101al06_mipi_lcd_driver;
-extern struct dsim_panel_ops ltl101al06_panel_ops;
 #elif defined(CONFIG_PANEL_S6D7AA0)
 extern struct mipi_dsim_lcd_driver s6d7aa0_mipi_lcd_driver;
-extern struct dsim_panel_ops s6d7aa0_panel_ops;
 #elif defined(CONFIG_PANEL_HX8279D)
 extern struct mipi_dsim_lcd_driver hx8279d_mipi_lcd_driver;
-extern struct dsim_panel_ops hx8279d_panel_ops;
+#elif defined(CONFIG_PANEL_S6D7AA0_BV055HDM)
+extern struct mipi_dsim_lcd_driver s6d7aa0_mipi_lcd_driver;
+#elif defined(CONFIG_PANEL_TD4300)
+extern struct mipi_dsim_lcd_driver td4300_mipi_lcd_driver;
 #endif
 
 int dsim_panel_ops_init(struct dsim_device *dsim);
-
-/* dsim_panel_get_priv_ops() this function comes from XXXX_mipi_lcd.c */
-struct dsim_panel_ops *dsim_panel_get_priv_ops(struct dsim_device *dsim);
 
 
 #endif

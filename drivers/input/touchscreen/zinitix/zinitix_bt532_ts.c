@@ -52,13 +52,21 @@
 #include <linux/vbus_notifier.h>
 #endif
 
+#ifdef CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7
+#include "zinitix_o7_ref.h"
+#endif
+
 #define CONFIG_INPUT_ENABLED
 #define SEC_FACTORY_TEST
 
 #define NOT_SUPPORTED_TOUCH_DUMMY_KEY
 
 #define MAX_FW_PATH 255
+#ifdef CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7
+#define TSP_FW_FILENAME "zinitix.fw"
+#else
 #define TSP_FW_FILENAME "zinitix_fw.bin"
+#endif
 
 #ifdef CONFIG_INPUT_BOOSTER
 #include <linux/input/input_booster.h>
@@ -79,7 +87,11 @@ extern char *saved_command_line;
 /* added header file */
 
 #ifdef SUPPORTED_PALM_TOUCH
+#ifdef CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7
+#define TOUCH_POINT_MODE			1
+#else
 #define TOUCH_POINT_MODE			2
+#endif
 #else
 #define TOUCH_POINT_MODE			0
 #endif
@@ -109,7 +121,11 @@ name = "zinitix_isp" , addr 0x50*/
 #define CHIP_OFF_DELAY			50 /*ms*/
 #ifdef CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX
 #define CHIP_ON_DELAY			50 /*ms*/
+#ifdef CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7
+#define FIRMWARE_ON_DELAY		110 /*ms*/
+#else
 #define FIRMWARE_ON_DELAY		150 /*ms*/
+#endif
 #else
 #define CHIP_ON_DELAY			40 /*ms*/
 #define FIRMWARE_ON_DELAY		40 /*ms*/
@@ -144,13 +160,15 @@ enum key_event {
 #ifdef CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX
 #define	SEC_MUTUAL_AMP_V_SEL	0x0232
 
-#define	SEC_DND_N_COUNT			11
-#define	SEC_DND_U_COUNT			16
-#define	SEC_DND_FREQUENCY		139
+#ifdef CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7
+#define	SEC_DND_N_COUNT			15
+#define	SEC_DND_U_COUNT			18
+#define	SEC_DND_FREQUENCY		169
 
-#define	SEC_HFDND_N_COUNT		11
-#define	SEC_HFDND_U_COUNT		16
-#define	SEC_HFDND_FREQUENCY		104
+#define	SEC_HFDND_N_COUNT		15
+#define	SEC_HFDND_U_COUNT		18
+#define	SEC_HFDND_FREQUENCY		112
+#endif
 
 #define	SEC_SX_AMP_V_SEL		0x0434
 #define	SEC_SX_SUB_V_SEL		0x0055
@@ -158,14 +176,6 @@ enum key_event {
 #define	SEC_SY_SUB_V_SEL		0x0022
 #define	SEC_SHORT_N_COUNT		2
 #define	SEC_SHORT_U_COUNT		1
-#else
-#define SEC_DND_N_COUNT			10
-#define SEC_DND_U_COUNT			10
-#define SEC_DND_FREQUENCY		19
-
-#define SEC_HFDND_N_COUNT		10
-#define SEC_HFDND_U_COUNT		10
-#define SEC_HFDND_FREQUENCY		19
 #endif
 
 #define MAX_RAW_DATA_SZ				792 /* 36x22 */
@@ -279,6 +289,7 @@ struct reg_ioctl {
 #define BT532_WRITE_FLASH					0x01d1
 #define BT532_READ_FLASH					0x01d2
 
+#define ZINITIX_INTERNAL_FLAG_02		0x011e
 #define ZINITIX_INTERNAL_FLAG_03		0x011f
 
 #define BT532_OPTIONAL_SETTING				0x0116
@@ -445,6 +456,9 @@ static void run_reference_read(void * device_data);
 static void get_reference(void *device_data);
 static void run_trxshort_read(void *device_data);
 static void get_trxshort(void *device_data);
+#ifdef CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7
+static void hfdnd_spec_adjust(void *device_data);
+#endif
 #endif
 static void clear_cover_mode(void *device_data);
 static void get_module_vendor(void *device_data);
@@ -496,6 +510,9 @@ static struct tsp_cmd tsp_cmds[] = {
 	{TSP_CMD("run_ref_calibration", run_ref_calibration),},
 	{TSP_CMD("dead_zone_enable", dead_zone_enable),},
 	{TSP_CMD("clear_cover_mode", clear_cover_mode),},
+#ifdef CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7
+	{TSP_CMD("hfdnd_spec_adjust", hfdnd_spec_adjust),},
+#endif	
 	{TSP_CMD("not_support_cmd", not_support_cmd),},
 };
 #endif /* SEC_FACTORY_TEST */
@@ -557,6 +574,8 @@ struct capa_info {
 	u32	ic_fw_size;
 	u32	MaxX;
 	u32	MaxY;
+	u32	MinX;
+	u32	MinY;	
 	u8	gesture_support;
 	u16	multi_fingers;
 	u16	button_num;
@@ -648,6 +667,17 @@ struct bt532_ts_info {
 	struct tsp_raw_data				*raw_data;
 #endif
 
+#ifdef CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7
+	const u16				*dnd_max_spec;
+	const u16				*dnd_min_spec;
+	const u16				*dnd_v_gap_spec;
+	const u16				*dnd_h_gap_spec;
+	const u16				*hfdnd_max_spec;
+	const u16				*hfdnd_min_spec;
+	const u16				*hfdnd_v_gap_spec;
+	const u16				*hfdnd_h_gap_spec;
+#endif
+
 	s16 Gap_max_x;
 	s16 Gap_max_y;
 	s16 Gap_max_val;
@@ -708,6 +738,25 @@ retry:
 	return length;
 }
 
+#if (TOUCH_POINT_MODE == 1)
+static s32 read_data_only(struct i2c_client *client, u8 *values, u16 length)
+{
+	s32 ret;
+	int count = 0;
+
+retry:
+	ret = i2c_master_recv(client, values, length);
+	if (ret < 0) {
+		usleep_range(1 * 1000, 1 * 1000);
+
+		if (++count < 8)
+			goto retry;
+		return ret;
+	}
+	usleep_range(DELAY_FOR_TRANSCATION, DELAY_FOR_TRANSCATION);
+	return length;
+}
+#endif
 static inline s32 write_data(struct i2c_client *client,
 	u16 reg, u8 *values, u16 length)
 {
@@ -998,6 +1047,12 @@ static bool ts_read_coord(struct bt532_ts_info *info)
 	memset(&info->touch_info,
 			0x0, sizeof(struct point_info));
 
+#ifdef CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7
+	if (read_data_only(info->client, (u8 *)(&info->touch_info), 10) < 0) {
+			tsp_debug_err(true,&client->dev, "error read point info using i2c.-\r\n");
+			return false;
+		}
+#else
 	if (read_data(info->client, BT532_POINT_STATUS_REG,
 			(u8 *)(&info->touch_info), 4) < 0) {
 		tsp_debug_err(true, &client->dev, "%s: Failed to read point info\n", __func__);
@@ -1007,7 +1062,7 @@ static bool ts_read_coord(struct bt532_ts_info *info)
 
 	tsp_debug_info(true, &client->dev, "status reg = 0x%x , event_flag = 0x%04x\n",
 				info->touch_info.status, info->touch_info.event_flag);
-
+#endif
 	if (info->touch_info.event_flag == 0)
 		goto out;
 
@@ -1792,6 +1847,13 @@ static bool init_touch(struct bt532_ts_info *info)
 	struct capa_info *cap = &(info->cap_info);
 	u16 reg_val = 0;
 	u8 data[4] = {0};
+#ifdef CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7	
+	int retry_cnt = 0;
+	int ret;
+
+retry_init:	
+#endif	
+	
 
 	zinitix_bit_set(reg_val, BIT_PT_CNT_CHANGE);
 	zinitix_bit_set(reg_val, BIT_DOWN);
@@ -1812,6 +1874,18 @@ static bool init_touch(struct bt532_ts_info *info)
 	info->cap_info.x_node_num = data[0] | (data[1] << 8);
 	info->cap_info.y_node_num = data[2] | (data[3] << 8);
 
+	
+#ifdef CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7
+
+	bt532_set_ta_status(info);
+	bt532_set_optional_mode(info, true);
+
+	if(write_reg(info->client, ZT75XX_RESOLUTION_EXPANDER, 4))  //resolution * 4
+	goto fail_init;
+	info->cap_info.MinX = 0;
+	info->cap_info.MinY = 0;
+#endif	
+
 	info->cap_info.MaxX= pdata->x_resolution;
 	info->cap_info.MaxY = pdata->y_resolution;
 
@@ -1820,6 +1894,11 @@ static bool init_touch(struct bt532_ts_info *info)
 
 	tsp_debug_info(true, &info->client->dev, "node x %d, y %d  resolution x %d, y %d\n",
 		info->cap_info.x_node_num, info->cap_info.y_node_num, info->cap_info.MaxX, info->cap_info.MaxY	);
+
+#ifdef CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX
+	if (write_reg(info->client, BT532_INITIAL_TOUCH_MODE, TOUCH_POINT_MODE) != I2C_SUCCESS)
+		goto fail_init;
+#endif	
 
 #if ESD_TIMER_INTERVAL
 	if (write_reg(info->client, BT532_PERIODICAL_INTERRUPT_INTERVAL,
@@ -1836,6 +1915,24 @@ static bool init_touch(struct bt532_ts_info *info)
 
 	return true;
 fail_init:
+	
+#ifdef CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7
+	if (++retry_cnt <= INIT_RETRY_CNT) {
+		bt532_power_control(info, POWER_OFF);
+		bt532_power_control(info, POWER_ON_SEQUENCE);
+		goto retry_init;
+
+	}
+	
+	 else if (retry_cnt == INIT_RETRY_CNT + 1) {
+				
+			ret = fw_update_work(info, 1);
+			if (ret < 0) 		
+			goto retry_fail_init;
+			}	
+	 
+	 retry_fail_init:
+#endif	
 	return false;
 }
 
@@ -1850,13 +1947,31 @@ static bool mini_init_touch(struct bt532_ts_info *info)
 		goto fail_mini_init;
 	}
 
+#ifdef CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX
+	if (write_reg(client, BT532_INITIAL_TOUCH_MODE, TOUCH_POINT_MODE) != I2C_SUCCESS)
+		goto fail_mini_init;
+#endif	
+
 	if (write_reg(client, BT532_TOUCH_MODE,
 			info->touch_mode) != I2C_SUCCESS)
 		goto fail_mini_init;
 
+
+#ifdef CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7	
+	bt532_set_ta_status(info);
+#endif	
 	bt532_set_optional_mode(info, true);
-#ifdef CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX
-	write_reg(client, ZT75XX_RESOLUTION_EXPANDER, 4);	//x1 x2 x3 ...
+
+
+#ifdef CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX	
+	if(write_reg(client, ZT75XX_RESOLUTION_EXPANDER, 4))	//x1 x2 x3 ...
+	goto fail_mini_init;
+
+#ifdef CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7		
+	/* soft calibration */
+	if (write_cmd(client, BT532_CALIBRATE_CMD) != I2C_SUCCESS)
+		goto fail_mini_init;
+#endif	
 #endif
 
 	if (write_reg(client, BT532_INT_ENABLE_FLAG,
@@ -1966,6 +2081,9 @@ static irqreturn_t bt532_touch_work(int irq, void *data)
 	u8 sub_status;
 	u8 prev_sub_status;
 	u32 x, y, w, maxX, maxY;
+#if (TOUCH_POINT_MODE == 2)
+	u32 minor_w;
+#endif
 #ifdef CONFIG_SEC_FACTORY
 	u16 z;
 #endif
@@ -2149,12 +2267,15 @@ static irqreturn_t bt532_touch_work(int irq, void *data)
 			if (palm == 0) {
 				if(w >= PALM_REPORT_WIDTH)
 					w = PALM_REPORT_WIDTH - 10;
+				minor_w = w;
 			} else if (palm == 1) {	//palm report
 				w = PALM_REPORT_WIDTH;
+				minor_w = PALM_REPORT_WIDTH/3;     
 //				info->touch_info.coord[i].minor_width = PALM_REPORT_WIDTH;
 			} else if (palm == 2){	// palm reject
 //				x = y = 0;
 				w = PALM_REJECT_WIDTH;
+				minor_w = PALM_REJECT_WIDTH;    
 //				info->touch_info.coord[i].minor_width = PALM_REJECT_WIDTH;
 			}
 #endif
@@ -2170,7 +2291,7 @@ static irqreturn_t bt532_touch_work(int irq, void *data)
 								(u32)((palm == 1)?w-40:w));
 #if (TOUCH_POINT_MODE == 2)
 			input_report_abs(info->input_dev,
-				ABS_MT_TOUCH_MINOR, (u32)info->touch_info.coord[i].minor_width);
+				ABS_MT_TOUCH_MINOR, (u32)minor_w); 
 #ifdef SUPPORTED_PALM_TOUCH
 			input_report_abs(info->input_dev, ABS_MT_PALM, (palm > 0)?1:0);
 #endif
@@ -2509,14 +2630,63 @@ static bool ts_set_touchmode(u16 value){
 		up(&misc_info->work_lock);
 		return -1;
 	}
+#ifdef CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7
+	write_cmd(misc_info->client, BT532_WAKEUP_CMD);
+	usleep_range(50 * 1000, 50 * 1000);
+#else
 	//wakeup cmd
 	write_cmd(misc_info->client, 0x0A);
 	usleep_range(20 * 1000, 20 * 1000);
 	write_cmd(misc_info->client, 0x0A);
 	usleep_range(20 * 1000, 20 * 1000);
 
-	if (misc_info->touch_mode == TOUCH_POINT_MODE) 
+#endif
+
+#ifdef CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7
+	if (misc_info->touch_mode == TOUCH_POINT_MODE)
+	{
+		read_data(misc_info->client, BT532_AFE_FREQUENCY,
+				(u8 *)&misc_info->cap_info.afe_frequency, 2);
+		read_data(misc_info->client, BT532_DND_SHIFT_VALUE,
+				(u8 *)&misc_info->cap_info.shift_value, 2);		
+		read_data(misc_info->client, BT532_DND_U_COUNT,
+				(u8 *)&misc_info->cap_info.u_cnt, 2);
+	}
+#endif	
 	misc_info->work_state = SET_MODE;
+#ifdef CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7
+
+		if (value == TOUCH_DND_MODE) {
+			if (write_reg(misc_info->client, BT532_DND_N_COUNT,
+					SEC_DND_N_COUNT)!=I2C_SUCCESS)
+				tsp_debug_info(true, &misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+				"Fail to set ZT7548_DND_N_COUNT %d.\n", SEC_DND_N_COUNT);
+			if (write_reg(misc_info->client, BT532_DND_U_COUNT,
+					SEC_DND_U_COUNT)!=I2C_SUCCESS)
+				tsp_debug_info(true, &misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+				"Fail to set ZT7548_DND_U_COUNT %d.\n", SEC_DND_U_COUNT);
+			if (write_reg(misc_info->client, BT532_AFE_FREQUENCY,
+					SEC_DND_FREQUENCY)!=I2C_SUCCESS)
+				tsp_debug_info(true, &misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+					"Fail to set ZT7548_AFE_FREQUENCY %d.\n", SEC_DND_FREQUENCY);
+		} 
+		else if (misc_info->touch_mode == TOUCH_DND_MODE) {	
+			if (write_reg(misc_info->client, BT532_DND_SHIFT_VALUE,
+					misc_info->cap_info.shift_value) != I2C_SUCCESS)
+				tsp_debug_info(true, &misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+								"Fail to reset ZT7548_DND_SHIFT_VALUE %d.\n", misc_info->cap_info.shift_value);
+			if (write_reg(misc_info->client, BT532_AFE_FREQUENCY,
+					misc_info->cap_info.afe_frequency) != I2C_SUCCESS)
+				tsp_debug_info(true, &misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+									"Fail to reset ZT7548_AFE_FREQUENCY %d.\n", misc_info->cap_info.afe_frequency);
+
+			if (write_reg(misc_info->client, BT532_DND_U_COUNT,
+					misc_info->cap_info.u_cnt) != I2C_SUCCESS)
+				tsp_debug_info(true, &misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+													"Fail to reset ZT7548_AFE_U_count %d.\n", misc_info->cap_info.u_cnt);
+		}
+
+#endif
 
 	if (value == TOUCH_SEC_MODE)
 		misc_info->touch_mode = TOUCH_POINT_MODE;
@@ -2530,6 +2700,102 @@ static bool ts_set_touchmode(u16 value){
 		if (write_reg(misc_info->client, BT532_DELAY_RAW_FOR_HOST,
 			RAWDATA_DELAY_FOR_HOST) != I2C_SUCCESS)
 			zinitix_printk("Fail to set BT532_DELAY_RAW_FOR_HOST.\r\n");
+	}
+
+	if (write_reg(misc_info->client, BT532_TOUCH_MODE,
+			misc_info->touch_mode) != I2C_SUCCESS)
+		tsp_debug_info(true, &misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+				"Fail to set ZINITX_TOUCH_MODE %d.\r\n", misc_info->touch_mode);
+
+	/* clear garbage data */
+	for (i = 0; i < 3; i++) {
+		usleep_range(20 * 1000, 20 * 1000);
+		write_cmd(misc_info->client, BT532_CLEAR_INT_STATUS_CMD);
+	}
+
+	misc_info->work_state = NOTHING;
+	enable_irq(misc_info->irq);
+	up(&misc_info->work_lock);
+	return 1;
+}
+#endif
+
+
+
+#if defined(CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7)
+static bool ts_set_touchmode2(u16 value)
+{
+	int i;
+
+	disable_irq(misc_info->irq);
+
+	down(&misc_info->work_lock);
+	if (misc_info->work_state != NOTHING) {
+		tsp_debug_info(true,&misc_info->client->dev, "other process occupied.. (%d)\n",
+			misc_info->work_state);
+		enable_irq(misc_info->irq);
+		up(&misc_info->work_lock);
+		return -1;
+	}
+
+	write_cmd(misc_info->client, BT532_WAKEUP_CMD);
+	usleep_range(50 * 1000, 50 * 1000);
+	
+	if (misc_info->touch_mode == TOUCH_POINT_MODE) {
+		read_data(misc_info->client, BT532_AFE_FREQUENCY,
+				(u8 *)&misc_info->cap_info.afe_frequency, 2);
+		read_data(misc_info->client, BT532_DND_SHIFT_VALUE,
+				(u8 *)&misc_info->cap_info.shift_value, 2);
+		read_data(misc_info->client, BT532_DND_U_COUNT,
+		(u8 *)&misc_info->cap_info.u_cnt, 2);
+	}
+	misc_info->work_state = SET_MODE;
+
+	if(value == TOUCH_DND_MODE) {
+		if (write_reg(misc_info->client, BT532_DND_N_COUNT,
+				SEC_HFDND_N_COUNT)!=I2C_SUCCESS)
+			tsp_debug_info(true, &misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+					"Fail to set ZT75XX_HFDND_N_COUNT %d.\n", SEC_HFDND_N_COUNT);
+		if (write_reg(misc_info->client, BT532_DND_U_COUNT,
+				SEC_HFDND_U_COUNT)!=I2C_SUCCESS)
+			tsp_debug_info(true, &misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+					"Fail to set ZT75XX_HFDND_U_COUNT %d.\n", SEC_HFDND_U_COUNT);
+		if (write_reg(misc_info->client, BT532_AFE_FREQUENCY,
+				SEC_HFDND_FREQUENCY)!=I2C_SUCCESS)
+			tsp_debug_info(true, &misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+					"Fail to set ZT75XX_AFE_FREQUENCY %d.\n", SEC_HFDND_FREQUENCY);
+	} else if (misc_info->touch_mode == TOUCH_DND_MODE) {
+		if (write_reg(misc_info->client, BT532_DND_SHIFT_VALUE,
+				misc_info->cap_info.shift_value) != I2C_SUCCESS)
+			tsp_debug_info(true, &misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+					"Fail to reset ZT75XX_DND_SHIFT_VALUE %d.\n",
+					misc_info->cap_info.shift_value);
+
+		if (write_reg(misc_info->client, BT532_AFE_FREQUENCY,
+				misc_info->cap_info.afe_frequency) != I2C_SUCCESS)
+			tsp_debug_info(true, &misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+					"Fail to reset ZT75XX_AFE_FREQUENCY %d.\n",
+					misc_info->cap_info.afe_frequency);
+		
+		if (write_reg(misc_info->client, BT532_DND_U_COUNT,
+				misc_info->cap_info.u_cnt) != I2C_SUCCESS)
+			tsp_debug_info(true, &misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+					"Fail to reset ZT7548_AFE_U_count %d.\n",
+					misc_info->cap_info.u_cnt);
+	}
+	if (value == TOUCH_SEC_MODE)
+		misc_info->touch_mode = TOUCH_POINT_MODE;
+	else
+		misc_info->touch_mode = value;
+
+	tsp_debug_info(true, &misc_info->client->dev, "[zinitix_touch] tsp_set_testmode, "
+			"touchkey_testmode = %d\r\n", misc_info->touch_mode);
+
+	if (misc_info->touch_mode != TOUCH_POINT_MODE) {
+		if (write_reg(misc_info->client, BT532_DELAY_RAW_FOR_HOST,
+				RAWDATA_DELAY_FOR_HOST) != I2C_SUCCESS)
+			tsp_debug_info(true, &misc_info->client->dev,
+					"Fail to set ZT7548_DELAY_RAW_FOR_HOST.\r\n");
 	}
 
 	if (write_reg(misc_info->client, BT532_TOUCH_MODE,
@@ -2792,10 +3058,15 @@ static void get_fw_ver_ic(void *device_data)
 
 	down(&info->work_lock);
 	//wakeup cmd
+#if defined(CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7)
+	write_cmd(misc_info->client, BT532_WAKEUP_CMD);
+	usleep_range(50 * 1000, 50 * 1000);
+#else	
 	write_cmd(misc_info->client, 0x0A);
 	usleep_range(20 * 1000, 20 * 1000);
 	write_cmd(misc_info->client, 0x0A);
 	usleep_range(20 * 1000, 20 * 1000);
+#endif
 
 	ret = ic_version_check(info);
 	up(&info->work_lock);
@@ -3004,6 +3275,10 @@ static void run_dnd_read(void *device_data)
 	struct tsp_raw_data *raw_data = info->raw_data;
 	u16 min, max;
 	s32 i,j;
+#if defined(CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7)
+	int fx, fy;
+	bool result = true;
+#endif	
 
 #if ESD_TIMER_INTERVAL
 	esd_timer_stop(misc_info);
@@ -3028,10 +3303,34 @@ static void run_dnd_read(void *device_data)
 
 			if(raw_data->dnd_data[i * info->cap_info.y_node_num + j] > max)
 				max = raw_data->dnd_data[i * info->cap_info.y_node_num + j];
+
+#if defined(CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7)
+			if (result && ( i * info->cap_info.y_node_num + j) < ZT7538_DND_DATA_SIZE &&
+				(raw_data->dnd_data[ i * info->cap_info.y_node_num + j] > info->dnd_max_spec[ i * info->cap_info.y_node_num + j]
+				|| raw_data->dnd_data[ i * info->cap_info.y_node_num + j] < info->dnd_min_spec[ i * info->cap_info.y_node_num + j])) {
+				result = false;
+				fx = i;
+				fy = j;
+				printk("(E)");
+			}
+#endif			
 		}
 		printk("\n");
 	}
+
+#if defined(CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7)
+	if(result) {
+		sprintf(finfo->cmd_buff, "%s", "OK");
+	} else {
+		sprintf(finfo->cmd_buff, "%d,%d,%d,%d,%d", fx, fy,
+					info->dnd_min_spec[(fx * info->cap_info.y_node_num) + fy],
+					info->dnd_max_spec[(fx * info->cap_info.y_node_num) + fy],
+					raw_data->dnd_data[(fx * info->cap_info.y_node_num) + fy]);
+		tsp_debug_info(true, &client->dev, "%s: dnd data view fail: [%d][%d]\n", info->client->name, fx, fy);
+	}
+#else
 	snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%d,%d\n", min, max);
+#endif
 	set_cmd_result(info, finfo->cmd_buff,
 					strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
 	finfo->cmd_state = OK;
@@ -3130,6 +3429,10 @@ static void run_dnd_v_gap_read(void *device_data)
 	int i, j, offset, val, cur_val, next_val;
 	u16 screen_max = 0x0000;
 	u16 touchkey_max = 0x0000;
+#if defined(CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7)
+	int fx, fy;
+	bool result = true;
+#endif
 
 	set_default_result(info);
 
@@ -3176,13 +3479,35 @@ static void run_dnd_v_gap_read(void *device_data)
 					if(raw_data->vgap_data[i * y_num + j] > screen_max)
 							screen_max = raw_data->vgap_data[i * y_num + j];
 				}
+#if defined(CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7)
+				if (result && offset < ZT7538_V_GAP_DATA_SIZE &&
+					raw_data->vgap_data[offset] > info->dnd_v_gap_spec[offset]) {
+					result = false;
+					fx = i;
+					fy = j;
+					printk("(E)");
+				}
+#endif				
 			}
 	}
 		printk("\n");
 }
 
 	tsp_debug_info(true, &client->dev, "DND V Gap screen_max %d touchkey_max %d\n", screen_max, touchkey_max);
+
+#if defined(CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7)
+	if (result) {
+		sprintf(finfo->cmd_buff, "%s", "OK");
+	} else {
+		offset = (fx * y_num) + fy;
+		sprintf(finfo->cmd_buff, "%d,%d,%d,%d,%d", fx, fy,
+					0, info->dnd_v_gap_spec[offset],
+					raw_data->vgap_data[offset]);
+		tsp_debug_info(true, &client->dev, "%s: dnd v gap view fail: [%d][%d]\n", info->client->name, fx, fy);
+	}
+#else	
 	snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%d,%d\n", screen_max, touchkey_max);
+#endif
 
 	set_cmd_result(info, finfo->cmd_buff,
 			strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
@@ -3202,6 +3527,10 @@ static void run_dnd_h_gap_read(void *device_data)
 	int i, j, offset, val, cur_val, next_val;
 	u16 screen_max = 0x0000;
 	u16 touchkey_max = 0x0000;
+#if defined(CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7)
+	int fx, fy;
+	bool result = true;
+#endif	
 
 	set_default_result(info);
 
@@ -3262,12 +3591,33 @@ static void run_dnd_h_gap_read(void *device_data)
 							screen_max = raw_data->hgap_data[i * y_num + j];
 				}
 			}
+#if defined(CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7)
+			if (result && offset < ZT7538_H_GAP_DATA_SIZE &&
+				raw_data->hgap_data[offset] > info->dnd_h_gap_spec[offset]) {
+				result = false;
+				fx = i;
+				fy = j;
+				printk("(E)");
+			}
+#endif			
 		}
 		printk("\n");
 	}
 
 	tsp_debug_info(true, &client->dev, "DND H Gap screen_max %d, touchkey_max %d\n", screen_max, touchkey_max);
+#if defined(CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7)
+	if(result) {
+		sprintf(finfo->cmd_buff, "%s", "OK");
+	} else {
+		offset = (fx * y_num) + fy;
+		sprintf(finfo->cmd_buff, "%d,%d,%d,%d,%d", fx, fy,
+					0, info->dnd_h_gap_spec[offset],
+					raw_data->hgap_data[offset]);
+		tsp_debug_info(true, &client->dev,"%s: dnd h gap view fail: [%d][%d]\n", info->client->name, fx, fy);
+	}
+#else	
 	snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%d,%d\n", screen_max, touchkey_max);
+#endif
 
 	set_cmd_result(info, finfo->cmd_buff,
 			strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
@@ -3435,13 +3785,21 @@ static void run_hfdnd_read(void *device_data)
 	int x_num = info->cap_info.x_node_num, y_num = info->cap_info.y_node_num;
 	int i, j, offset;
 	u16 min = 0xFFFF, max = 0x0000;
+#if defined(CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7)
+	int fx, fy;
+	bool result = true;
+#endif
 
 #if ESD_TIMER_INTERVAL
 	esd_timer_stop(misc_info);
 #endif
 	set_default_result(info);
 
+#if defined(CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7)
+	ts_set_touchmode2(TOUCH_DND_MODE);
+#else
 	ts_set_touchmode(TOUCH_HFDND_MODE);
+#endif
 	get_raw_data(info, (u8 *)raw_data->hfdnd_data, 2);
 	ts_set_touchmode(TOUCH_POINT_MODE);
 
@@ -3455,13 +3813,36 @@ static void run_hfdnd_read(void *device_data)
 				min = raw_data->hfdnd_data[offset];
 			if(raw_data->hfdnd_data[offset]>max)
 				max = raw_data->hfdnd_data[offset];
+#if defined(CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7)
+			if (result && offset < ZT7538_DND_DATA_SIZE &&
+				(raw_data->hfdnd_data[offset] > info->hfdnd_max_spec[offset]
+				|| raw_data->hfdnd_data[offset] < info->hfdnd_min_spec[offset])) {
+				result = false;
+				fx = i;
+				fy = j;
+				printk("(E)");
+			}
+#endif			
 		}
 		printk("\n");
 	}
 
 	tsp_debug_info(true, &client->dev, "HF DND Pass\n");
 
+#if defined(CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7)
+	if(result) {
+		sprintf(finfo->cmd_buff, "%s", "OK");
+	} else {
+		offset = (fx * info->cap_info.y_node_num) + fy;
+		sprintf(finfo->cmd_buff, "%d,%d,%d,%d,%d", fx, fy,
+					info->hfdnd_min_spec[offset],
+					info->hfdnd_max_spec[offset],
+					raw_data->hfdnd_data[offset]);
+		tsp_debug_info(true, &client->dev, "%s: hfdnd data view fail: [%d][%d]\n", info->client->name, fx, fy);
+	}
+#else
 	snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%d,%d\n", min, max);
+#endif
 	set_cmd_result(info, finfo->cmd_buff,
 			strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
 	finfo->cmd_state = OK;
@@ -3521,6 +3902,10 @@ static void run_hfdnd_v_gap_read(void *device_data)
 	int i, j, offset, val, cur_val, next_val;
 	u16 screen_max = 0x0000;
 	u16 touchkey_max = 0x0000;
+#if defined(CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7)
+	int fx, fy;
+	bool result = true;
+#endif
 
 	set_default_result(info);
 
@@ -3568,12 +3953,33 @@ static void run_hfdnd_v_gap_read(void *device_data)
 							screen_max = raw_data->hfvgap_data[i * y_num + j];
 				}
 			}
+#if defined(CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7)
+			if (result && offset < ZT7538_V_GAP_DATA_SIZE &&
+				raw_data->hfvgap_data[offset] > info->hfdnd_v_gap_spec[offset]) {
+				result = false;
+				fx = i;
+				fy = j;
+				printk("(E)");
+			}
+#endif			
 	}
 		printk("\n");
 }
 
 	tsp_debug_info(true, &client->dev, "HFDND V Gap screen_max %d touchkey_max %d\n", screen_max, touchkey_max);
+#if defined(CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7)
+	if (result) {
+		sprintf(finfo->cmd_buff, "%s", "OK");
+	} else {
+		offset = (fx * y_num) + fy;
+		sprintf(finfo->cmd_buff, "%d,%d,%d,%d,%d", fx, fy,
+					0, info->hfdnd_v_gap_spec[offset],
+					raw_data->hfvgap_data[offset]);
+		tsp_debug_info(true, &client->dev, "%s: hfdnd v gap view fail: [%d][%d]\n", info->client->name, fx, fy);
+	}
+#else	
 	snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%d,%d\n", screen_max, touchkey_max);
+#endif
 
 	set_cmd_result(info, finfo->cmd_buff,
 			strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
@@ -3593,12 +3999,16 @@ static void run_hfdnd_h_gap_read(void *device_data)
 	int i, j, offset, val, cur_val, next_val;
 	u16 screen_max = 0x0000;
 	u16 touchkey_max = 0x0000;
+#if defined(CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7)
+	int fx, fy;
+	bool result = true;
+#endif
 
 	set_default_result(info);
 
 	memset(raw_data->hfhgap_data, 0x00, TSP_CMD_NODE_NUM);
 
-	printk("DND H Gap start\n");
+	printk("HFDND H Gap start\n");
 
 	for (i = 0; i < x_num ; i++) {
 		for (j = 0; j < y_num-1; j++) {
@@ -3653,12 +4063,33 @@ static void run_hfdnd_h_gap_read(void *device_data)
 							screen_max = raw_data->hfhgap_data[i * y_num + j];
 				}
 			}
+#if defined(CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7)
+			if (result && offset < ZT7538_H_GAP_DATA_SIZE &&
+				raw_data->hfhgap_data[offset] > info->hfdnd_h_gap_spec[offset]) {
+				result = false;
+				fx = i;
+				fy = j;
+				printk("(E)");
+			}
+#endif			
 		}
 		printk("\n");
 	}
 
 	tsp_debug_info(true, &client->dev, "HFDND H Gap screen_max %d, touchkey_max %d\n", screen_max, touchkey_max);
+#if defined(CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7)
+	if (result) {
+		sprintf(finfo->cmd_buff, "%s", "OK");
+	} else {
+		offset = (fx * y_num) + fy;
+		sprintf(finfo->cmd_buff, "%d,%d,%d,%d,%d", fx, fy,
+					0, info->hfdnd_h_gap_spec[offset],
+					raw_data->hfhgap_data[offset]);
+		tsp_debug_info(true, &client->dev, "%s: hfdnd h gap view fail: [%d][%d]\n", info->client->name, fx, fy);
+	}
+#else	
 	snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%d,%d\n", screen_max, touchkey_max);
+#endif
 
 	set_cmd_result(info, finfo->cmd_buff,
 			strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
@@ -3930,7 +4361,49 @@ static void get_trxshort(void *device_data)
 
 	return;
 }
+#ifdef CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7
+static void hfdnd_spec_adjust(void *device_data)
+{
+	struct bt532_ts_info *info = (struct bt532_ts_info *)device_data;
+	struct i2c_client *client = info->client;
+	struct tsp_factory_info *finfo = info->factory_info;
+	int test;
 
+	set_default_result(info);
+
+	test = finfo->cmd_param[0];
+
+	if (test) {	/* set : assy */
+		info->dnd_max_spec = DND_MAX_Ref_data;
+		info->dnd_min_spec = DND_MIN_Ref_data;
+		info->dnd_v_gap_spec = DND_V_GAP_Ref_data;
+		info->dnd_h_gap_spec = DND_H_GAP_Ref_data;
+		info->hfdnd_max_spec = HF_DND_MAX_Ref_data;
+		info->hfdnd_min_spec = HF_DND_MIN_Ref_data;
+		info->hfdnd_v_gap_spec = HF_DND_V_GAP_Ref_data;
+		info->hfdnd_h_gap_spec = HF_DND_H_GAP_Ref_data;
+		dev_info(&client->dev, "%s: set set spec: %d\n", __func__, test);
+	} else {	/* module */
+		info->dnd_max_spec = Module_DND_MAX_Ref_data;
+		info->dnd_min_spec = Module_DND_MIN_Ref_data;
+		info->dnd_v_gap_spec = Module_DND_V_GAP_Ref_data;
+		info->dnd_h_gap_spec = Module_DND_H_GAP_Ref_data;
+		info->hfdnd_max_spec = Module_HF_DND_MAX_Ref_data;
+		info->hfdnd_min_spec = Module_HF_DND_MIN_Ref_data;
+		info->hfdnd_v_gap_spec = Module_HF_DND_V_GAP_Ref_data;
+		info->hfdnd_h_gap_spec = Module_HF_DND_H_GAP_Ref_data;
+		dev_info(&client->dev, "%s: set module spec: %d\n", __func__, test);
+	}
+
+	snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%s", "OK");
+	set_cmd_result(info, finfo->cmd_buff, (int)strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+	finfo->cmd_state = OK;
+
+	dev_info(&client->dev, "%s: %s(%d)\n", __func__,
+			finfo->cmd_buff, (int)strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+	return;
+}
+#endif
 
 #endif
 
@@ -5257,6 +5730,11 @@ static int bt532_ts_probe(struct i2c_client *client,
 
 		goto err_kthread_create_failed;
 	}
+#if defined(CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_O7)
+	info->factory_info->cmd_param[0] = 1;
+	hfdnd_spec_adjust(info);
+	info->factory_info->cmd_state = WAITING;
+#endif	
 #endif
 
 	info->register_cb = info->pdata->register_cb;

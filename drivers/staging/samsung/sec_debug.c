@@ -25,6 +25,8 @@
 #include <linux/sec_ext.h>
 #include <linux/sec_debug.h>
 #include <linux/slab.h>
+#include <linux/fdtable.h>
+#include <linux/mount.h>
 
 #include <asm/io.h>
 #include <asm/cacheflush.h>

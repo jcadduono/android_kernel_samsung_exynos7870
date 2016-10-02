@@ -18,7 +18,7 @@ static int calc_vt_volt(int gamma)
 
 	max = (sizeof(vt_trans_volt) >> 2) - 1;
 	if (gamma > max) {
-		dimm_err(" %s exceed gamma value\n", __func__);
+		dimm_err("%s : exceed gamma value\n", __func__);
 		gamma = max;
 	}
 
@@ -40,11 +40,11 @@ static int calc_v3_volt(struct dim_data *data, int color)
 	gamma = data->t_gamma[V3][color];
 
 	if (gamma > vreg_element_max[V3]) {
-		dimm_err("%s : gamma overflow : %d\n", __FUNCTION__, gamma);
+		dimm_err("%s : gamma overflow : %d\n", __func__, gamma);
 		gamma = vreg_element_max[V3];
 	}
 	if (gamma < 0) {
-		dimm_err(":%s : gamma undeflow : %d\n", __FUNCTION__, gamma);
+		dimm_err("%s : gamma undeflow : %d\n", __func__, gamma);
 		gamma = 0;
 	}
 
@@ -67,11 +67,11 @@ static int calc_v11_volt(struct dim_data *data, int color)
 	gamma = data->t_gamma[V11][color];
 
 	if (gamma > vreg_element_max[V11]) {
-		dimm_err("%s : gamma overflow : %d\n", __FUNCTION__, gamma);
+		dimm_err("%s : gamma overflow : %d\n", __func__, gamma);
 		gamma = vreg_element_max[V11];
 	}
 	if (gamma < 0) {
-		dimm_err("%s : gamma undeflow : %d\n", __FUNCTION__, gamma);
+		dimm_err("%s : gamma undeflow : %d\n", __func__, gamma);
 		gamma = 0;
 	}
 
@@ -84,7 +84,7 @@ static int calc_v11_volt(struct dim_data *data, int color)
 
 	ret = vt - (int)temp;
 
-	return ret ;
+	return ret;
 }
 
 static int calc_v23_volt(struct dim_data *data, int color)
@@ -96,11 +96,11 @@ static int calc_v23_volt(struct dim_data *data, int color)
 	gamma = data->t_gamma[V23][color];
 
 	if (gamma > vreg_element_max[V23]) {
-		dsim_err("%s : gamma overflow : %d\n", __FUNCTION__, gamma);
+		dsim_err("%s : gamma overflow : %d\n", __func__, gamma);
 		gamma = vreg_element_max[V23];
 	}
 	if (gamma < 0) {
-		dsim_err("%s : gamma undeflow : %d\n", __FUNCTION__, gamma);
+		dsim_err("%s : gamma undeflow : %d\n", __func__, gamma);
 		gamma = 0;
 	}
 
@@ -127,11 +127,11 @@ static int calc_v35_volt(struct dim_data *data, int color)
 	gamma = data->t_gamma[V35][color];
 
 	if (gamma > vreg_element_max[V35]) {
-		dsim_err("%s : gamma overflow : %d\n", __FUNCTION__, gamma);
+		dsim_err("%s : gamma overflow : %d\n", __func__, gamma);
 		gamma = vreg_element_max[V35];
 	}
 	if (gamma < 0) {
-		dsim_err("%s : gamma undeflow : %d\n", __FUNCTION__, gamma);
+		dsim_err("%s : gamma undeflow : %d\n", __func__, gamma);
 		gamma = 0;
 	}
 
@@ -156,11 +156,11 @@ static int calc_v51_volt(struct dim_data *data, int color)
 	gamma = data->t_gamma[V51][color];
 
 	if (gamma > vreg_element_max[V51]) {
-		dsim_err("%s : gamma overflow : %d\n", __FUNCTION__, gamma);
+		dsim_err("%s : gamma overflow : %d\n", __func__, gamma);
 		gamma = vreg_element_max[V51];
 	}
 	if (gamma < 0) {
-		dsim_err("%s : gamma undeflow : %d\n", __FUNCTION__, gamma);
+		dsim_err("%s : gamma undeflow : %d\n", __func__, gamma);
 		gamma = 0;
 	}
 
@@ -184,11 +184,11 @@ static int calc_v87_volt(struct dim_data *data, int color)
 	gamma = data->t_gamma[V87][color];
 
 	if (gamma > vreg_element_max[V87]) {
-		dsim_err("%s : gamma overflow : %d\n", __FUNCTION__, gamma);
+		dsim_err("%s : gamma overflow : %d\n", __func__, gamma);
 		gamma = vreg_element_max[V87];
 	}
 	if (gamma < 0) {
-		dsim_err("%s : gamma undeflow : %d\n", __FUNCTION__, gamma);
+		dsim_err("%s : gamma undeflow : %d\n", __func__, gamma);
 		gamma = 0;
 	}
 
@@ -212,11 +212,11 @@ static int calc_v151_volt(struct dim_data *data, int color)
 	gamma = data->t_gamma[V151][color];
 
 	if (gamma > vreg_element_max[V151]) {
-		dsim_err("%s : gamma overflow : %d\n", __FUNCTION__, gamma);
+		dsim_err("%s : gamma overflow : %d\n", __func__, gamma);
 		gamma = vreg_element_max[V151];
 	}
 	if (gamma < 0) {
-		dsim_err("%s : gamma undeflow : %d\n", __FUNCTION__, gamma);
+		dsim_err("%s : gamma undeflow : %d\n", __func__, gamma);
 		gamma = 0;
 	}
 
@@ -240,11 +240,11 @@ static int calc_v203_volt(struct dim_data *data, int color)
 	gamma = data->t_gamma[V203][color];
 
 	if (gamma > vreg_element_max[V203]) {
-		dsim_err("%s : gamma overflow : %d\n", __FUNCTION__, gamma);
+		dsim_err("%s : gamma overflow : %d\n", __func__, gamma);
 		gamma = vreg_element_max[V203];
 	}
 	if (gamma < 0) {
-		dsim_err("%s : gamma undeflow : %d\n", __FUNCTION__, gamma);
+		dsim_err("%s : gamma undeflow : %d\n", __func__, gamma);
 		gamma = 0;
 	}
 
@@ -267,11 +267,11 @@ static int calc_v255_volt(struct dim_data *data, int color)
 
 
 	if (gamma > vreg_element_max[V255]) {
-		dsim_err("%s : gamma overflow : %d\n", __FUNCTION__, gamma);
+		dsim_err("%s : gamma overflow : %d\n", __func__, gamma);
 		gamma = vreg_element_max[V255];
 	}
 	if (gamma < 0) {
-		dsim_err("%s : gamma undeflow : %d\n", __FUNCTION__, gamma);
+		dsim_err("%s : gamma undeflow : %d\n", __func__, gamma);
 		gamma = 0;
 	}
 
@@ -463,10 +463,10 @@ int generate_volt_table(struct dim_data *data)
 	/* calculate voltage for every vref point */
 	for (j = 0; j < NUM_VREF; j++) {
 		seq = calc_seq[j];
- 		index = vref_index[seq];
+		index = vref_index[seq];
 		if (calc_volt_point[seq] != NULL) {
 			for (i = 0; i < CI_MAX; i++)
-				data->volt[index][i] = calc_volt_point[seq](data ,i);
+				data->volt[index][i] = calc_volt_point[seq](data, i);
 		}
 	}
 
@@ -484,7 +484,7 @@ int generate_volt_table(struct dim_data *data)
 		}
 
 	}
-#if defined (SMART_DIMMING_DEBUG)
+#if defined(SMART_DIMMING_DEBUG)
 	dsim_info("=========================== VT Voltage ===========================\n");
 
 	dsim_info("R : %05d : G: %05d : B : %05d\n",
@@ -558,7 +558,7 @@ static int calc_reg_v35(struct dim_data *data, int color)
 	t1 = data->volt_vt[color] - data->look_volt[V35][color];
 	t2 = data->volt_vt[color] - data->look_volt[V51][color];
 
-	temp = ((unsigned long)t1 * (unsigned long)fix_const[V35].de)/ (unsigned long)t2;
+	temp = ((unsigned long)t1 * (unsigned long)fix_const[V35].de) / (unsigned long)t2;
 	ret = (int)temp - fix_const[V35].nu;
 
 	return ret;
@@ -731,4 +731,3 @@ int cal_gamma_from_index(struct dim_data *data, struct SmtDimInfo *brInfo)
 
 	return ret;
 }
-

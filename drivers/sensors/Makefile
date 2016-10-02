@@ -16,6 +16,7 @@ obj-$(CONFIG_SENSORS_CM3323)	    += cm3323.o
 obj-$(CONFIG_SENSORS_CM36652)	    += cm36652.o
 obj-$(CONFIG_SENSORS_CM36655)       += cm36655.o
 obj-$(CONFIG_SENSORS_TMD3782)       += tmd3782.o
+obj-$(CONFIG_SENSORS_TMD3700)       += tmd3700.o
 obj-$(CONFIG_SENSORS_STK3013)       += stk3013.o
 # grip_sensor
 obj-$(CONFIG_SENSORS_SX9306)        += sx9306.o
@@ -32,3 +33,4 @@ obj-$(CONFIG_SENSORS_MAX_NOTCHFILTER)	+= max_notchfilter/
 # magnetic_sensor
 obj-$(CONFIG_SENSORS_BMM050)	+= bmm050_driver.o bmm050.o
 obj-$(CONFIG_SENSORS_AK09916C)	+= ak09916c.o
+obj-$(CONFIG_SENSORS_YAS539)        += yas539/yas_mag_drv-yas539.o yas539/yas_mag_kernel.o

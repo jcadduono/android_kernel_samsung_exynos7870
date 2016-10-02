@@ -1157,6 +1157,7 @@ static int sm5703_fg_set_property(struct power_supply *psy,
 				if (fuelgauge->force_dec_mode != SM5703_NORMAL_MODE) {
 					fuelgauge->force_dec_mode = SM5703_NORMAL_MODE;
 					fuelgauge->initial_update_of_soc = true;
+					wake_unlock(&fuelgauge->fuel_alert_wake_lock);
 					sm5703_fuelgauge_fuelalert_init(fuelgauge,
 							fuelgauge->pdata->fuel_alert_soc);
 				}

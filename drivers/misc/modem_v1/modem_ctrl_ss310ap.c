@@ -26,6 +26,8 @@
 #include "modem_prj.h"
 #include "modem_utils.h"
 
+#include <linux/modem_notifier.h>
+
 #ifdef CONFIG_EXYNOS_BUSMONITOR
 #include <linux/exynos-busmon.h>
 #endif
@@ -56,6 +58,9 @@ static irqreturn_t cp_wdt_handler(int irq, void *arg)
 
 	mif_disable_irq(&mc->irq_cp_wdt);
 	mif_err("%s: ERR! CP_WDOG occurred\n", mc->name);
+
+	if (mc->phone_state == STATE_ONLINE)
+		modem_notify_event(MODEM_EVENT_WATCHDOG);
 
 	exynos_clear_cp_reset();
 	new_state = STATE_CRASH_WATCHDOG;
@@ -115,6 +120,10 @@ static void cp_active_handler(void *arg)
 
 	if (old_state != new_state) {
 		mif_info("new_state = %s\n", cp_state_str(new_state));
+
+		if (old_state == STATE_ONLINE)
+			modem_notify_event(MODEM_EVENT_EXIT);
+
 		list_for_each_entry(iod, &mc->modem_state_notify_list, list) {
 			if (iod && atomic_read(&iod->opened) > 0)
 				iod->modem_state_changed(iod, new_state);
@@ -289,6 +298,9 @@ static int ss310ap_reset(struct modem_ctl *mc)
 	if (*(unsigned int *)(mc->mdm_data->ipc_base + 0xF80)
 			== 0xDEB)
 		return 0;
+
+	if (mc->phone_state == STATE_ONLINE)
+		modem_notify_event(MODEM_EVENT_RESET);
 
 	if (exynos_get_cp_power_status() > 0) {
 		mif_info("CP aleady Power on, try reset\n");

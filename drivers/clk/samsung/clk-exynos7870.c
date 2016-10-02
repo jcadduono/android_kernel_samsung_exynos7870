@@ -169,7 +169,11 @@ static struct init_vclk exynos7870_peri_vclks[] __initdata = {
 	/* PERI SPI ACLK */
 	VCLK(peri_spi_sensorhub, gate_peri_spi_sensorhub, "gate_peri_spi_sensorhub", 0, 0, NULL),
 	VCLK(peri_spi_voiceprocessor, gate_peri_spi_voiceprocessor, "gate_peri_spi_voiceprocessor", 0, 0, NULL),
+#ifdef CONFIG_SENSORS_FINGERPRINT
 	VCLK(peri_spi_ese, gate_peri_spi_ese, "gate_peri_spi_ese", 0, 0, "fp-spi-pclk"),
+#else
+	VCLK(peri_spi_ese, gate_peri_spi_ese, "gate_peri_spi_ese", 0, 0, NULL),
+#endif
 	VCLK(peri_spi_rearfrom, gate_peri_spi_rearfrom, "gate_peri_spi_rearfrom", 0, 0, NULL),
 	VCLK(peri_spi_frontfrom, gate_peri_spi_frontfrom, "gate_peri_spi_frontfrom", 0, 0, NULL),
 	/* PERI RTC ACLK */
@@ -195,7 +199,11 @@ static struct init_vclk exynos7870_fsys_vclks[] __initdata = {
 	VCLK(fsys_sss, gate_fsys_sss, "gate_fsys_sss", 0, 0, NULL),
 	VCLK(fsys_rtic, gate_fsys_rtic, "gate_fsys_rtic", 0, 0, NULL),
 	VCLK(fsys_pdma0, gate_fsys_pdma0, "gate_fsys_pdma0", 0, 0, NULL),
+#ifdef CONFIG_SENSORS_FINGERPRINT
+	VCLK(fsys_pdma1, gate_fsys_pdma1, "gate_fsys_pdma1", 0, 0, "fp-spi-dma"),
+#else
 	VCLK(fsys_pdma1, gate_fsys_pdma1, "gate_fsys_pdma1", 0, 0, NULL),
+#endif
 	VCLK(fsys_sromc, gate_fsys_sromc, "gate_fsys_sromc", 0, 0, NULL),
 	VCLK(fsys_usb20drd_phyclock, umux_fsys_clkphy_fsys_usb20drd_phyclock_user, "umux_fsys_clkphy_fsys_usb20drd_phyclock_user", 0, 0, NULL),
 
@@ -268,7 +276,11 @@ static struct init_vclk exynos7870_mif_vclks[] __initdata = {
 	VCLK(uart_debug_sclk, sclk_uart_debug, "sclk_uart_debug", 0, 0, NULL),
 	VCLK(spi_frontfrom_sclk, sclk_spi_frontfrom, "sclk_spi_frontfrom", 0, 0, NULL),
 	VCLK(spi_rearfrom_sclk, sclk_spi_rearfrom, "sclk_spi_rearfrom", 0, 0, NULL),
+#ifdef CONFIG_SENSORS_FINGERPRINT
 	VCLK(spi_ese_sclk, sclk_spi_ese, "sclk_spi_ese", 0, 0, "fp-spi-sclk"),
+#else
+	VCLK(spi_ese_sclk, sclk_spi_ese, "sclk_spi_ese", 0, 0, NULL),
+#endif
 	VCLK(spi_voiceprocessor_sclk, sclk_spi_voiceprocessor, "sclk_spi_voiceprocessor", 0, 0, NULL),
 	VCLK(spi_sensorhub_sclk, sclk_spi_sensorhub, "sclk_spi_sensorhub", 0, 0, NULL),
 	VCLK(isp_sensor0_sclk, sclk_isp_sensor0, "sclk_isp_sensor0", 0, 0, NULL),

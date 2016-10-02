@@ -184,6 +184,11 @@ config INPUT_KEYRESET
 	  To compile this driver as a module, choose M here: the
 	  module will be called keyreset.
 
+config GLOVE_TOUCH
+	tristate "Glove touch"
+	help
+	  Say Y here if you want glove touch.
+
 config INPUT_KEYCOMBO
 	tristate "Key combo"
 	depends on INPUT
@@ -199,6 +204,18 @@ config HALL
 	help
 	  Enable Hall Feature
 
+config CHECK_BOOKCOVER_HALL
+	tristate "Enable to check BookCover HALL"
+	default n
+	help
+	  Enable to check BookCover hall detect Feature
+
+config CERTIFY_HALL
+	tristate "Enable CERTIFY HALL"
+	default n
+	help
+	  Enable Certify Hall Feature
+
 comment "Input Device Drivers"
 
 source "drivers/input/keyboard/Kconfig"
@@ -210,6 +227,8 @@ source "drivers/input/joystick/Kconfig"
 source "drivers/input/tablet/Kconfig"
 
 source "drivers/input/touchscreen/Kconfig"
+
+source "drivers/input/wacom/Kconfig"
 
 source "drivers/input/misc/Kconfig"
 

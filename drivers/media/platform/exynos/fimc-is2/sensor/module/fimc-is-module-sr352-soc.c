@@ -298,14 +298,77 @@ p_err:
 }
 
 #ifndef CONFIG_LOAD_FILE
+#define BURST_MODE_BUFFER_MAX_SIZE 255
+#define BURST_REG 0x0e
+
+u8 sr352_burstmode_buf[BURST_MODE_BUFFER_MAX_SIZE];
+
+static int fimc_is_sr352_write8_array(struct i2c_client *client, int idx)
+{
+	int ret = 0;
+	struct i2c_msg msg[1];
+
+	msg->addr = client->addr;
+	msg->flags = 0;
+	msg->len = idx;
+	msg->buf = sr352_burstmode_buf;
+
+	ret = fimc_is_i2c_transfer(client->adapter, msg, 1);
+	if (ret < 0) {
+		pr_err("i2c treansfer fail(%d)", ret);
+		return ret;
+	}
+
+	return 0;
+}
+
 static int sr352_write_regs(struct v4l2_subdev *sd, const struct sensor_reg regs[], int size)
 {
-	int err = 0, i;
+	int err = -EINVAL, i;
+	int idx = 0;
+	int burst_flag = 0;
+	unsigned short subaddr = 0;
+	unsigned short value = 0;
+
 	struct i2c_client *client = to_client(sd);
 
 	for (i = 0; i < size; i++) {
-		err = fimc_is_sr352_write8(client, regs[i].addr, regs[i].data);
-		CHECK_ERR_MSG(err, "register set failed\n");
+		if (idx > (BURST_MODE_BUFFER_MAX_SIZE-10)) {
+			cam_info("[SR352] BURST MODE buffer overflow!!\n");
+			return err;
+		}
+
+		subaddr = regs[i].addr; // address
+		value = regs[i].data; // data
+
+		if(burst_flag == 0) {
+			switch(subaddr) {
+				case BURST_REG:
+					if(value != 0x0) {
+						burst_flag = 1;
+						idx = 0;
+					}
+					break; // burst mode flag
+
+				default:
+					err = fimc_is_sr352_write8(client, subaddr, value);
+					CHECK_ERR_MSG(err, "default register set failed\n");
+					break; // Normal i2c
+			}
+		} else if (burst_flag == 1) {
+			if(subaddr == BURST_REG && value == 0x00) {
+				fimc_is_sr352_write8_array(client, idx);
+				idx = 0;
+				burst_flag = 0;
+			} else {
+				if (idx == 0)
+					sr352_burstmode_buf[idx++] = subaddr;
+				sr352_burstmode_buf[idx++] = value;
+			}
+		} else {
+			err = fimc_is_sr352_write8(client, subaddr, value);
+			CHECK_ERR_MSG(err, "else register set failed\n");
+		}
 	}
 
 	return 0;
@@ -1086,9 +1149,7 @@ int sensor_sr352_stream_off(struct v4l2_subdev *subdev)
 	width = state->preview.frmsize->width;
 	height = state->preview.frmsize->height;
 
-	cam_info("set stream off size(%dx%d)\n", width, height);
-
-	cam_info("stream off\n");
+	cam_info("stream off : size(%dx%d)\n", width, height);
 	ret = sensor_sr352_apply_set(subdev, "sr352_stop_stream",
 		&sr352_regset_table.stop_stream);
 	state->preview.update_frmsize = 1;
@@ -1110,8 +1171,7 @@ int sensor_sr352_stream_off(struct v4l2_subdev *subdev)
 		cam_dbg("Recording Stop!\n");
 		state->runmode = RUNMODE_RECORDING_STOP;
 		if (width == 1280 && height == 720) {
-			sensor_sr352_apply_set(subdev, "sr352_Init_Reg",
-				&sr352_regset_table.init); // For HD Recording
+			state->runmode = RUNMODE_HD_RECORDING_STOP;
 		}
 		break;
 
@@ -1159,24 +1219,26 @@ static inline int sr352_get_exif_exptime(struct v4l2_subdev *subdev, u32 *exp_ti
 	u8 read_value1 = 0;
 	u8 read_value2 = 0;
 	u8 read_value3 = 0;
-	int OPCLK = 26000000;
+	u8 read_value4 = 0;
+	int OPCLK = 27300000;
 
 	err = fimc_is_sr352_write8(client, 0x03, 0x20);
 	CHECK_ERR_COND(err < 0, -ENODEV);
 
-	fimc_is_sr352_read8(client, 0x80, &read_value1);
-	fimc_is_sr352_read8(client, 0x81, &read_value2);
-	fimc_is_sr352_read8(client, 0x82, &read_value3);
+	fimc_is_sr352_read8(client, 0xa0, &read_value1);
+	fimc_is_sr352_read8(client, 0xa1, &read_value2);
+	fimc_is_sr352_read8(client, 0xa2, &read_value3);
+	fimc_is_sr352_read8(client, 0xa3, &read_value4);
 
-	cam_dbg("exposure time read_value %d, %d, %d\n",
-		read_value1, read_value2, read_value3);
+	cam_dbg("exposure time read_value %d, %d, %d, %d\n",
+		read_value1, read_value2, read_value3, read_value4);
 
-	if(read_value1 == 0 && read_value2 == 0 && read_value3 == 0)
+	if(read_value1 == 0 && read_value2 == 0 && read_value3 == 0 && read_value4 == 0)
 	{
 		*exp_time = 0;
 		err = -EFAULT;
 	} else {
-		*exp_time = OPCLK / ((read_value1 << 19) + (read_value2 << 11) + (read_value3 << 3));
+		*exp_time = OPCLK / ((read_value1 << 24) + (read_value2 << 16) + (read_value3 << 8) + read_value4);
 		cam_dbg("exposure time %u\n", *exp_time);
 	}
 
@@ -1188,25 +1250,21 @@ static inline int sr352_get_exif_iso(struct v4l2_subdev *subdev, u16 *iso)
 	struct i2c_client *client = to_client(subdev);
 	int err = 0;
 	u8 read_value = 0;
-	unsigned short gain_value = 0;
 
 	err = fimc_is_sr352_write8(client, 0x03, 0x20);
 	CHECK_ERR_COND(err < 0, -ENODEV);
-	fimc_is_sr352_read8(client, 0xb0, &read_value);
+	fimc_is_sr352_read8(client, 0x50, &read_value);
 
-	gain_value = ((read_value * 100) / 32) + 50;
-	cam_dbg("iso : gain_value=%d, read_value=%d\n", gain_value, read_value);
+	cam_dbg("iso : read_value=%d\n", read_value);
 
-	if (gain_value < 114)
+	if (read_value < 0x26)
 		*iso = 50;
-	else if (gain_value < 214)
+	else if (read_value < 0x5c)
 		*iso = 100;
-	else if (gain_value < 264)
+	else if (read_value < 0x83)
 		*iso = 200;
-	else if (gain_value < 752)
-		*iso = 400;
 	else
-		*iso = 800;
+		*iso = 400;
 
 	cam_dbg("ISO=%d\n", *iso);
 	return 0;
@@ -1277,7 +1335,7 @@ static int sensor_sr352_init(struct v4l2_subdev *subdev, u32 val)
 	state->sensor_mode = SENSOR_CAMERA;
 	state->contrast = CONTRAST_DEFAULT;
 	state->effect = V4L2_IMAGE_EFFECT_NONE;
-	state->metering = METERING_MATRIX;
+	state->metering = METERING_CENTER;
 	state->white_balance = WHITE_BALANCE_AUTO;
 	state->fps = FRAME_RATE_AUTO;
 	state->req_fps = FRAME_RATE_AUTO;
@@ -1449,8 +1507,13 @@ static int sr352_start_preview(struct v4l2_subdev *subdev)
 {
 	struct sr352_state *state = to_state(subdev);
 	int err = 0;
+	u32 width, height;
 
-	cam_info("Camera Preview start : E - runmode = %d\n", state->runmode);
+	width = state->preview.frmsize->width;
+	height = state->preview.frmsize->height;
+
+	cam_info("Camera Preview start : E - runmode = %d, size(%dx%d)\n",
+		state->runmode, width, height);
 
 	if ((state->runmode == RUNMODE_NOTREADY) ||
 	    (state->runmode == RUNMODE_CAPTURING)) {
@@ -1462,6 +1525,11 @@ static int sr352_start_preview(struct v4l2_subdev *subdev)
 	if (state->req_fps >= 0) {
 		err = sr352_set_frame_rate(subdev, state->req_fps);
 		CHECK_ERR(err);
+	}
+
+	if (state->runmode == RUNMODE_HD_RECORDING_STOP) {
+		/* write init register because of HD recording Angle */
+		sensor_sr352_apply_set(subdev, "sr352_Init_Reg", &sr352_regset_table.init);
 	}
 
 	/* Set preview size */
@@ -2078,9 +2146,9 @@ static int sensor_sr352_power_setpin(struct i2c_client *client,
 	/* REAR CAMERA - POWER ON */
 	SET_PIN(pdata, SENSOR_SCENARIO_EXTERNAL, GPIO_SCENARIO_ON, gpio_io_en, "3M_CAM_1P8_EN", PIN_OUTPUT, 1, 1);
 	SET_PIN(pdata, SENSOR_SCENARIO_EXTERNAL, GPIO_SCENARIO_ON, gpio_none, "VDD_CAM_SENSOR_A2P8", PIN_REGULATOR, 1, 1);
-	SET_PIN(pdata, SENSOR_SCENARIO_EXTERNAL, GPIO_SCENARIO_ON, gpio_core_en, "CAM_CORE_1P25_EN", PIN_OUTPUT, 1, 2000);
+	SET_PIN(pdata, SENSOR_SCENARIO_EXTERNAL, GPIO_SCENARIO_ON, gpio_core_en, "CAM_CORE_1P25_EN", PIN_OUTPUT, 1, 3000);
 	SET_PIN(pdata, SENSOR_SCENARIO_EXTERNAL, GPIO_SCENARIO_ON, gpio_none, "pin", PIN_FUNCTION, 0, 5000);
-	SET_PIN(pdata, SENSOR_SCENARIO_EXTERNAL, GPIO_SCENARIO_ON, gpio_standby, NULL, PIN_OUTPUT, 1, 10000);
+	SET_PIN(pdata, SENSOR_SCENARIO_EXTERNAL, GPIO_SCENARIO_ON, gpio_standby, NULL, PIN_OUTPUT, 1, 11000);
 	SET_PIN(pdata, SENSOR_SCENARIO_EXTERNAL, GPIO_SCENARIO_ON, gpio_reset, NULL, PIN_OUTPUT, 1, 1000);
 
 	/* REAR CAMERA - POWER OFF */

@@ -4,7 +4,8 @@
 #include <linux/types.h>
 #include <linux/kernel.h>
 
-#define UI_MAX_BRIGHTNESS	365
+#define EXTEND_BRIGHTNESS	306
+#define UI_MAX_BRIGHTNESS	255
 #define UI_MIN_BRIGHTNESS	0
 #define UI_DEFAULT_BRIGHTNESS	128
 #define NORMAL_TEMPERATURE	25	/* 25 degrees Celsius */

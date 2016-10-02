@@ -350,8 +350,11 @@ struct dw_mci {
 	struct regulator	*vqemmc;
 #endif
 
-        /* For argos */
-        unsigned int transferred_cnt;
+	/* For argos */
+	unsigned int transferred_cnt;
+
+	/* Sfr dump */
+	struct dw_mci_sfe_ram_dump	*sfr_dump;
 };
 
 /* DMA ops for Internal/External DMAC interface */

@@ -12,7 +12,6 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *  GNU General Public License for more details.
  */
-#define DEBUG
 #include <linux/module.h>
 #include <linux/interrupt.h>
 #include <linux/workqueue.h>
@@ -111,7 +110,6 @@ static struct gpio_event_platform_data sec_jack_input_data = {
 };
 
 struct sec_jack_control_data jack_controls;
-EXPORT_SYMBOL_GPL(jack_controls);
 
 int sec_jack_register_button_notify_cb(sec_jack_button_notify_cb func)
 {
@@ -121,6 +119,30 @@ int sec_jack_register_button_notify_cb(sec_jack_button_notify_cb func)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(sec_jack_register_button_notify_cb);
+
+int sec_jack_set_snd_card_registered(int snd_card_registered)
+{
+	jack_controls.snd_card_registered = snd_card_registered;
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(sec_jack_set_snd_card_registered);
+
+int sec_jack_register_set_micbias_cb(int (*set_micbias) (bool))
+{
+	jack_controls.set_micbias = set_micbias;
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(sec_jack_register_set_micbias_cb);
+
+int sec_jack_register_get_adc_cb(int (*get_adc) (void))
+{
+	jack_controls.get_adc = get_adc;
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(sec_jack_register_get_adc_cb);
 
 static void sec_jack_gpio_init(struct sec_jack_platform_data *pdata)
 {
@@ -771,6 +793,7 @@ static int sec_jack_probe(struct platform_device *pdev)
 
 	dev_info(&pdev->dev, "Registering sec_jack driver\n");
 	return 0;
+
 err_dev_attr_mic_adc:
 	device_remove_file(earjack, &dev_attr_state);
 err_dev_attr_state:

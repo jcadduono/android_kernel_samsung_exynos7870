@@ -589,12 +589,12 @@ int fimc_is_hw_scp_input_crop(u32 instance, struct fimc_is_hw_ip *hw_ip)
 	struct param_otf_output *otf_output = &(param->otf_output);
 	struct param_dma_output *dma_output = &(param->dma_output);
 
-	if (param->otf_output.cmd == OTF_OUTPUT_COMMAND_ENABLE) {
-		dst_width  = otf_output->width;
-		dst_height = otf_output->height;
-	} else if (dma_output->cmd == DMA_OUTPUT_COMMAND_ENABLE) {
+	if (dma_output->cmd == DMA_OUTPUT_COMMAND_ENABLE) {
 		dst_width  = dma_output->width;
 		dst_height = dma_output->height;
+	} else {
+		dst_width  = otf_output->width;
+		dst_height = otf_output->height;
 	}
 
 	fimc_is_hw_scp_adjust_pre_ratio(otf_input->width, otf_input->height,

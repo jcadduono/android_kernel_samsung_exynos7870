@@ -925,12 +925,6 @@ void __iomem *cmu_isp;
 int exynos7870_fimc_is_print_clk(struct device *dev);
 static void exynos7870_fimc_is_print_clk_reg(void)
 {
-	void __iomem *cmu_mif;
-	void __iomem *cmu_isp;
-
-	cmu_mif = ioremap(0x10460000, SZ_4K);
-	cmu_isp = ioremap(0x144D0000, SZ_4K);
-
 	printk(KERN_DEBUG "[@] MIF\n");
 	PRINT_CLK((cmu_mif + 0x0140), "BUS_PLL_CON0");
 	PRINT_CLK((cmu_mif + 0x0144), "BUS_PLL_CON1");
@@ -977,9 +971,6 @@ static void exynos7870_fimc_is_print_clk_reg(void)
 	PRINT_CLK((cmu_isp +  0x0824), "CLK_ENABLE_CLK_ISP_ISP");
 	PRINT_CLK((cmu_isp +  0x0828), "CLK_ENABLE_CLKPHY_ISP_S_RXBYTECLKHS0_S4");
 	PRINT_CLK((cmu_isp +  0x082C), "CLK_ENABLE_CLKPHY_ISP_S_RXBYTECLKHS0_S4S");
-
-	iounmap(cmu_mif);
-	iounmap(cmu_isp);
 }
 
 int exynos7870_fimc_is_clk_gate(u32 clk_gate_id, bool is_on)

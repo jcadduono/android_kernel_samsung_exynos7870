@@ -35,7 +35,7 @@ extern int cnss_wlan_check_hang(void);
 #endif /* 20160327 AI 4 2 */
 extern int cnss_wlan_register_driver(void);
 extern void cnss_wlan_unregister_driver(void);
-
+extern void cnss_wlan_force_ldo_reset(void);
 extern void cnss_set_driver_status(enum cnss_driver_status driver_status);
 
 typedef int (*oob_irq_handler_t)(void* dev_para);

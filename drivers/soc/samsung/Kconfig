@@ -56,3 +56,9 @@ config MCINFO_SYSFS
 	default	y if SYSFS
 
 endif #SOC_SAMSUNG
+
+config SEC_INCELL
+	bool "Incell data & function for Samsung"
+	default n
+	help
+	  say y to enable incell data & function for Samsung.

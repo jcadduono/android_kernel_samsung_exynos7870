@@ -71,6 +71,15 @@
 
 #define BATT_MISC_EVENT_UNDEFINED_RANGE_TYPE	0x00000001
 
+#if defined(CONFIG_BATTERY_SWELLING)
+enum swelling_mode_state {
+	SWELLING_MODE_NONE = 0,
+	SWELLING_MODE_CHARGING,
+	SWELLING_MODE_FULL,
+	SWELLING_MODE_ADDITIONAL,
+};
+#endif
+
 struct adc_sample_info {
 	unsigned int cnt;
 	int total_adc;
@@ -186,6 +195,8 @@ struct sec_battery_info {
 	/* charging */
 	unsigned int charging_mode;
 	bool is_recharging;
+	int wdt_kick_disable;
+
 	bool is_jig_on;
 	int cable_type;
 	int muic_cable_type;
@@ -274,9 +285,7 @@ struct sec_battery_info {
 #endif
 	bool charging_block;
 #if defined(CONFIG_BATTERY_SWELLING)
-	bool swelling_mode;
-	unsigned long swelling_block_start;
-	unsigned long swelling_block_passed;
+	unsigned int swelling_mode;
 	int swelling_full_check_cnt;
 #endif
 #if defined(CONFIG_AFC_CHARGER_MODE)
@@ -465,6 +474,7 @@ enum {
 	BATT_MISC_EVENT,
 	FACTORY_MODE_RELIEVE,
 	FACTORY_MODE_BYPASS,
+	BATT_WDT_CONTROL,
 };
 
 #ifdef CONFIG_OF

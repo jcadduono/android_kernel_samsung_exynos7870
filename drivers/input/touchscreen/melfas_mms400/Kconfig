@@ -44,5 +44,15 @@ config TOUCHSCREEN_MELFAS_MMS492
 
 #          To compile this driver as a module, choose M here: the module will be called mms_ts.
 
+config MELFAS_GHOST_TOUCH_AUTO_DETECT
+        tristate "MELFAS Ghost Touch Auto Detect"
+        depends on I2C
+        help
+          Say Y here if you use melfas ghost touch auto detect in your system.
+
+#          If unsure, say N.
+
+#          To compile this driver as a module, choose M here: the module will be called mms_ts.
+
 endif
 

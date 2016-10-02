@@ -105,6 +105,7 @@
 				iod,links = <0x200>;
 				iod,attrs = <0x2>;
 				iod,app = "Data Router";
+				iod,max_tx_size = <2048>;
 			};
 			io_device_5 {
 				iod,name = "umts_dm0";
