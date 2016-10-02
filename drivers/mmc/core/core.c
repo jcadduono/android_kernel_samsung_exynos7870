@@ -2386,6 +2386,10 @@ int _mmc_detect_card_removed(struct mmc_host *host)
 		pr_debug("%s: card removed too slowly\n", mmc_hostname(host));
 	}
 
+	if (ret && !strcmp("mmc1", mmc_hostname(host)) &&
+			host->ops->get_cd && host->ops->get_cd(host))
+		ret =0;
+
 	if (ret) {
 		mmc_card_set_removed(host->card);
 		pr_debug("%s: card remove detected\n", mmc_hostname(host));

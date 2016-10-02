@@ -1290,9 +1290,13 @@ EXPORT_SYMBOL(cnss_wlan_unregister_driver);
 
 void cnss_wlan_force_ldo_reset(void)
 {
+#ifdef CONFIG_QCA9377_LDO_RESET
 	gpio_set_value(15, 0);
 	msleep(100);
 	gpio_set_value(15, 1);
+#else
+	printk("cnss: ""CONFIG_QCA9377_LDO_RESET is not set.\n");
+#endif
 }
 EXPORT_SYMBOL(cnss_wlan_force_ldo_reset);
 

@@ -535,7 +535,7 @@ err_i2cfunc_not_support:
 	kfree(chip);
 err_mfd_nomem:
 err_parse_dt:
-	kfree(pdata);
+	devm_kfree(&i2c->dev, pdata);
 err_dt_nomem:
 	return ret;
 }

@@ -555,11 +555,17 @@ void fimc_is_sensor_flash_fire_work(struct work_struct *data)
 	device = v4l2_get_subdev_hostdata(sensor_peri->subdev_flash);
 	BUG_ON(!device);
 
+	mutex_lock(&sensor_peri->cis.control_lock);
+	if (!sensor_peri->cis.cis_data->stream_on) {
+		warn("[%s] already stream off\n", __func__);
+		goto p_err_mutext;
+	}
+
 	/* sensor stream off */
 	ret = CALL_CISOPS(&sensor_peri->cis, cis_stream_off, sensor_peri->subdev_cis);
 	if (ret < 0) {
 		err("[%s] stream off fail\n", __func__);
-		goto p_err;
+		goto p_err_streamoff;
 	}
 
 	ret = fimc_is_sensor_wait_streamoff(device);
@@ -686,12 +692,14 @@ void fimc_is_sensor_flash_fire_work(struct work_struct *data)
 		}
 	}
 
-p_err:
+p_err_streamoff:
 	/* sensor stream on */
 	ret = CALL_CISOPS(&sensor_peri->cis, cis_stream_on, sensor_peri->subdev_cis);
 	if (ret < 0) {
 		err("[%s] stream on fail\n", __func__);
 	}
+p_err_mutext:
+	mutex_unlock(&sensor_peri->cis.control_lock);
 }
 
 void fimc_is_sensor_flash_expire_handler(unsigned long data)
@@ -1147,6 +1155,8 @@ void fimc_is_sensor_peri_probe(struct fimc_is_device_sensor_peri *sensor_peri)
 	INIT_WORK(&sensor_peri->actuator.actuator_data.actuator_work, fimc_is_sensor_peri_m2m_actuator);
 
 	hrtimer_init(&sensor_peri->actuator.actuator_data.afwindow_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+
+	mutex_init(&sensor_peri->cis.control_lock);
 }
 
 int fimc_is_sensor_peri_s_stream(struct fimc_is_device_sensor *device,
@@ -1247,7 +1257,9 @@ int fimc_is_sensor_peri_s_stream(struct fimc_is_device_sensor *device,
 		ret = CALL_CISOPS(cis, cis_stream_on, subdev_cis);
 	} else {
 		/* stream off sequence */
+		mutex_lock(&cis->control_lock);
 		ret = CALL_CISOPS(cis, cis_stream_off, subdev_cis);
+		mutex_unlock(&cis->control_lock);
 		if (subdev_preprocessor){
 			ret = CALL_PREPROPOPS(preprocessor, preprocessor_stream_off, subdev_preprocessor);
 			if (ret) {

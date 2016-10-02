@@ -272,6 +272,12 @@ config QCOM_WIFI
 	---help---
 	  This is a configuration for qualcomm WLAN driver.
 	  
+config QCA9377_LDO_RESET
+	bool "QCA9377 LDO flag for recovery"
+	default n
+	---help---
+	  This is a configuration for qualcomm WLAN LDO issue.
+
 config CNSS_SDIO
 	tristate "Flag to enable platform driver for SIDO based wifi device"
 	depends on MMC_DW

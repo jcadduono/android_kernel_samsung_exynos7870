@@ -64,6 +64,7 @@ struct fimc_is_cis {
 	/* get a min, max fps to HAL */
 	u32				min_fps;
 	u32				max_fps;
+	struct mutex			control_lock;
 };
 
 struct fimc_is_actuator_data {
